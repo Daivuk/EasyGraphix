@@ -60,10 +60,13 @@ struct sInput\n\
 float4 main(sInput input):SV_TARGET\n\
 {\n\
     float4 diffuse = xDiffuse.Sample(sSampler, input.texCoord);\n\
-    return /*diffuse **/ input.color;\n\
+    return diffuse * input.color;\n\
 }";
 
 #define MAX_VERTEX_COUNT (300 * 2 * 3)
+#define DIFFUSE_MAP     0
+#define NORMAL_MAP      1
+#define MATERIAL_MAP    2
 
 // Batch stuff
 typedef struct
@@ -79,21 +82,31 @@ BOOL bIsInBatch = FALSE;
 SEGVertex currentVertex = {0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 1, 1};
 EG_TOPOLOGY currentTopology;
 
+// Textures
+typedef struct
+{
+    ID3D11Texture2D            *pTexture;
+    ID3D11ShaderResourceView   *pResourceView;
+} SEGTexture2D;
+
 // Devices
 typedef struct
 {
-    IDXGISwapChain         *pSwapChain;
-    ID3D11Device           *pDevice;
-    ID3D11DeviceContext    *pDeviceContext;
-    ID3D11RenderTargetView *pRenderTargetView;
-    D3D11_TEXTURE2D_DESC    backBufferDesc;
-    ID3D11VertexShader     *pVS;
-    ID3D11PixelShader      *pPS;
-    ID3D11InputLayout      *pInputLayout;
-    ID3D11Buffer           *pCBViewProj;
-    ID3D11Buffer           *pCBModel;
-    ID3D11Buffer           *pVertexBuffer;
-    ID3D11Resource         *pVertexBufferRes;
+    IDXGISwapChain             *pSwapChain;
+    ID3D11Device               *pDevice;
+    ID3D11DeviceContext        *pDeviceContext;
+    ID3D11RenderTargetView     *pRenderTargetView;
+    D3D11_TEXTURE2D_DESC        backBufferDesc;
+    ID3D11VertexShader         *pVS;
+    ID3D11PixelShader          *pPS;
+    ID3D11InputLayout          *pInputLayout;
+    ID3D11Buffer               *pCBViewProj;
+    ID3D11Buffer               *pCBModel;
+    ID3D11Buffer               *pVertexBuffer;
+    ID3D11Resource             *pVertexBufferRes;
+    SEGTexture2D               *textures;
+    uint32_t                    textureCount;
+    SEGTexture2D                pDefaultTextureMaps[3];
 } SEGDevice;
 SEGDevice  *devices = NULL;
 uint32_t    deviceCount = 0;
@@ -221,6 +234,10 @@ void resetStates()
     pBoundDevice->pDeviceContext->lpVtbl->VSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pVS, NULL, 0);
     pBoundDevice->pDeviceContext->lpVtbl->PSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pPS, NULL, 0);
     pBoundDevice->pDeviceContext->lpVtbl->OMSetRenderTargets(pBoundDevice->pDeviceContext, 1, &pBoundDevice->pRenderTargetView, NULL);
+
+    pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->pDefaultTextureMaps[DIFFUSE_MAP].pResourceView);
+    pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 1, 1, &pBoundDevice->pDefaultTextureMaps[NORMAL_MAP].pResourceView);
+    pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 2, 1, &pBoundDevice->pDefaultTextureMaps[MATERIAL_MAP].pResourceView);
 }
 
 ID3DBlob* compileShader(const char *szSource, const char *szProfile)
@@ -248,12 +265,139 @@ ID3DBlob* compileShader(const char *szSource, const char *szProfile)
     return shaderBlob;
 }
 
+void texture2DFromData(SEGTexture2D *pOut, const uint8_t* pData, UINT w, UINT h, BOOL bGenerateMipMaps)
+{
+    HRESULT result;
+
+    // Manually generate mip levels
+    BOOL allowMipMaps = TRUE;
+    UINT w2 = 1;
+    UINT h2 = 1;
+    while (w2 < (UINT)w) w2 *= 2;
+    if (w != w2) allowMipMaps = FALSE;
+    while (h2 < (UINT)h) h2 *= 2;
+    if (h != h2) allowMipMaps = FALSE;
+    uint8_t *pMipMaps = NULL;
+    int mipLevels = 1;
+    D3D11_SUBRESOURCE_DATA *mipsData = NULL;
+    allowMipMaps = allowMipMaps & bGenerateMipMaps;
+    if (allowMipMaps)
+    {
+        UINT biggest = max(w2, h2);
+        UINT w2t = w2;
+        UINT h2t = h2;
+        UINT totalSize = w2t * h2t * 4;
+        while (!(w2t == 1 && h2t == 1))
+        {
+            ++mipLevels;
+            w2t /= 2;
+            if (w2t < 1) w2t = 1;
+            h2t /= 2;
+            if (h2t < 1) h2t = 1;
+            totalSize += w2t * h2t * 4;
+        }
+        pMipMaps = (uint8_t *)malloc(totalSize);
+        memcpy(pMipMaps, pData, w * h * 4);
+
+        mipsData = (D3D11_SUBRESOURCE_DATA *)malloc(sizeof(D3D11_SUBRESOURCE_DATA) * mipLevels);
+
+        w2t = w2;
+        h2t = h2;
+        totalSize = 0;
+        int mipTarget = mipLevels;
+        mipLevels = 0;
+        byte* prev;
+        byte* cur;
+        while (mipLevels != mipTarget)
+        {
+            prev = pMipMaps + totalSize;
+            mipsData[mipLevels].pSysMem = prev;
+            mipsData[mipLevels].SysMemPitch = w2t * 4;
+            mipsData[mipLevels].SysMemSlicePitch = 0;
+            totalSize += w2t * h2t * 4;
+            cur = pMipMaps + totalSize;
+            w2t /= 2;
+            if (w2t < 1) w2t = 1;
+            h2t /= 2;
+            if (h2t < 1) h2t = 1;
+            ++mipLevels;
+            if (mipLevels == mipTarget) break;
+            int accum;
+
+            // Generate the mips
+            int multX = w2 / w2t;
+            int multY = h2 / h2t;
+            for (UINT y = 0; y < h2t; ++y)
+            {
+                for (UINT x = 0; x < w2t; ++x)
+                {
+                    for (UINT k = 0; k < 4; ++k)
+                    {
+                        accum = 0;
+                        accum += prev[(y * multY * w2 + x * multX) * 4 + k];
+                        accum += prev[(y * multY * w2 + (x + multX / 2) * multX) * 4 + k];
+                        accum += prev[((y + multY / 2) * multY * w2 + x * multX) * 4 + k];
+                        accum += prev[((y + multY / 2) * multY * w2 + (x + multX / 2) * multX) * 4 + k];
+                        cur[(y * w2t + x) * 4 + k] = accum / 4;
+                    }
+                }
+            }
+
+            w2 = w2t;
+            h2 = h2t;
+        }
+    }
+
+    D3D11_TEXTURE2D_DESC desc;
+    desc.Width = w;
+    desc.Height = h;
+    desc.MipLevels = mipLevels;
+    desc.ArraySize = 1;
+    desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    desc.SampleDesc.Count = 1;
+    desc.SampleDesc.Quality = 0;
+    desc.Usage = D3D11_USAGE_IMMUTABLE;
+    desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+    desc.CPUAccessFlags = 0;
+    desc.MiscFlags = 0;
+
+    D3D11_SUBRESOURCE_DATA data;
+    data.pSysMem = (pMipMaps) ? pMipMaps : pData;
+    data.SysMemPitch = w * 4;
+    data.SysMemSlicePitch = 0;
+
+    result = pBoundDevice->pDevice->lpVtbl->CreateTexture2D(pBoundDevice->pDevice, &desc, (mipsData) ? mipsData : &data, &pOut->pTexture);
+    if (result != S_OK)
+    {
+        return;
+    }
+    ID3D11Resource *pResource = NULL;
+    result = pOut->pTexture->lpVtbl->QueryInterface(pOut->pTexture, &IID_ID3D11Resource, &pResource);
+    if (result != S_OK)
+    {
+        pOut->pTexture->lpVtbl->Release(pOut->pTexture);
+        pOut->pTexture = NULL;
+        return;
+    }
+    result = pBoundDevice->pDevice->lpVtbl->CreateShaderResourceView(pBoundDevice->pDevice, pResource, NULL, &pOut->pResourceView);
+    if (result != S_OK)
+    {
+        pOut->pTexture->lpVtbl->Release(pOut->pTexture);
+        pOut->pTexture = NULL;
+        return;
+    }
+    pResource->lpVtbl->Release(pResource);
+
+    if (pMipMaps) free(pMipMaps);
+    if (mipsData) free(mipsData);
+}
+
 EGDevice egCreateDevice(HWND windowHandle)
 {
     if (bIsInBatch) return 0;
     EGDevice                ret = 0;
     DXGI_SWAP_CHAIN_DESC    swapChainDesc;
-    SEGDevice               device;
+    SEGDevice               device = {0};
     HRESULT                 result;
     ID3D11Texture2D        *pBackBuffer;
     ID3D11Resource         *pBackBufferRes;
@@ -364,6 +508,7 @@ EGDevice egCreateDevice(HWND windowHandle)
     device.pDeviceContext->lpVtbl->RSSetState(device.pDeviceContext, pSr2D);
     device.pDeviceContext->lpVtbl->OMSetBlendState(device.pDeviceContext, pBs2D, NULL, 0xffffffff);
     device.pDeviceContext->lpVtbl->PSSetSamplers(device.pDeviceContext, 0, 1, &pSs2D);
+    // ------------- END TEMP ------------
 
     // Create our geometry batch vertex buffer that will be used to batch everything
     D3D11_BUFFER_DESC vertexBufferDesc;
@@ -375,6 +520,20 @@ EGDevice egCreateDevice(HWND windowHandle)
     vertexBufferDesc.StructureByteStride = 0;
     device.pDevice->lpVtbl->CreateBuffer(device.pDevice, &vertexBufferDesc, NULL, &pBoundDevice->pVertexBuffer);
     pBoundDevice->pVertexBuffer->lpVtbl->QueryInterface(pBoundDevice->pVertexBuffer, &IID_ID3D11Resource, &pBoundDevice->pVertexBufferRes);
+
+    // Create a white texture for default rendering
+    {
+        uint8_t pixel[4] = {255, 255, 255, 255};
+        texture2DFromData(pBoundDevice->pDefaultTextureMaps + DIFFUSE_MAP, pixel, 1, 1, FALSE);
+    }
+    {
+        uint8_t pixel[4] = {128, 128, 255, 255};
+        texture2DFromData(pBoundDevice->pDefaultTextureMaps + NORMAL_MAP, pixel, 1, 1, FALSE);
+    }
+    {
+        uint8_t pixel[4] = {0, 0, 0, 0};
+        texture2DFromData(pBoundDevice->pDefaultTextureMaps + MATERIAL_MAP, pixel, 1, 1, FALSE);
+    }
 
     ++deviceCount;
     if (deviceCount == 1) resetStates();
@@ -854,17 +1013,29 @@ void egSelfIllum(float intensity)
 {
 }
 
+EGTexture createTexture(SEGTexture2D *pTexture)
+{
+    pBoundDevice->textures = realloc(pBoundDevice->textures, sizeof(SEGTexture2D) * (pBoundDevice->textureCount + 1));
+    memcpy(pBoundDevice->textures + pBoundDevice->textureCount, pTexture, sizeof(SEGTexture2D));
+    return ++pBoundDevice->textureCount;
+}
+
 EGTexture egCreateTexture1D(uint32_t dimension, const void *pData, EG_FORMAT dataFormat)
 {
     return 0;
 }
 
-EGTexture egCreateTexture2D(uint32_t width, uint32_t height, const void *pData, EG_DATA_TYPE dataType, EG_TEXTURE_FLAGS flags)
+EGTexture egCreateTexture2D(uint32_t width, uint32_t height, const void *pData, uint32_t dataType, EG_TEXTURE_FLAGS flags)
 {
-    return 0;
+    if (!pBoundDevice) return 0;
+    SEGTexture2D texture2D = {0};
+    uint8_t *pConvertedData = (uint8_t *)pData;
+    texture2DFromData(&texture2D, pConvertedData, width, height, flags & EG_GENERATE_MIPMAPS ? TRUE : FALSE);
+    if (!texture2D.pTexture) return 0;
+    return createTexture(&texture2D);
 }
 
-EGTexture egCreateTexture3D(uint32_t width, uint32_t height, uint32_t depth, const void *pData, EG_DATA_TYPE dataType)
+EGTexture egCreateTexture3D(uint32_t width, uint32_t height, uint32_t depth, const void *pData, uint32_t dataType)
 {
     return 0;
 }
@@ -880,14 +1051,23 @@ void egDestroyTexture(EGTexture *pTexture)
 
 void egBindDiffuse(EGTexture texture)
 {
+    if (!pBoundDevice) return;
+    if (texture > pBoundDevice->textureCount || !texture) return;
+    pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->textures[texture - 1].pResourceView);
 }
 
 void egBindNormal(EGTexture texture)
 {
+    if (!pBoundDevice) return;
+    if (texture >= pBoundDevice->textureCount || !texture) return;
+    pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 1, 1, &pBoundDevice->textures[texture - 1].pResourceView);
 }
 
 void egBindMaterial(EGTexture texture)
 {
+    if (!pBoundDevice) return;
+    if (texture >= pBoundDevice->textureCount || !texture) return;
+    pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 2, 1, &pBoundDevice->textures[texture - 1].pResourceView);
 }
 
 void egEnable(EG_ENABLE_BITS stateBits)

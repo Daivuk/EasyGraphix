@@ -1,15 +1,26 @@
+#include <assert.h>
 #include <Windows.h>
 #include "eg.h"
+#include "LodePNG.h"
 
 #define RESOLUTION_W 1280
 #define RESOLUTION_H 720
 
 HWND        windowHandle;
 EGDevice    device;
+EGTexture   texture;
 
 void init()
 {
     device = egCreateDevice(windowHandle);
+
+    std::vector<unsigned char> image;
+    unsigned int w, h;
+    auto ret = lodepng::decode(image, w, h, "stone.png");
+    assert(!ret);
+    byte* pData = &(image[0]);
+
+    texture = egCreateTexture2D(w, h, pData, EG_U8 | EG_RGBA, EG_GENERATE_MIPMAPS);
 }
 
 void shutdown()
@@ -27,27 +38,28 @@ void draw()
     egClear(EG_CLEAR_COLOR);
     egSet2DViewProj(-999, 999);
 
-    egBegin(EG_QUAD_STRIP);
+    egBindDiffuse(texture);
 
-    egColor3(0, 1, 0);
+    egBegin(EG_QUADS);
+    egTexCoord(0, 0);
     egPosition2(200, 200);
-    egColor3(0, 0, 1);
+    egTexCoord(0, 1);
     egPosition2(200, 400);
-    egColor3(1, 1, 0);
+    egTexCoord(1, 1);
     egPosition2(400, 400);
-    egColor3(1, 0, 0);
+    egTexCoord(1, 0);
     egPosition2(400, 200);
+    egEnd();
 
-    egColor3(0, 0, 1);
-    egPosition2(200 + 300, 400);
-    egColor3(0, 1, 0);
-    egPosition2(200 + 300, 200);
-
-    egColor3(1, 1, 0);
-    egPosition2(400 + 300, 400);
-    egColor3(1, 0, 0);
-    egPosition2(400 + 300, 200);
-
+    egBegin(EG_QUADS);
+    egTexCoord(0, 0);
+    egPosition2(500, 200);
+    egTexCoord(0, 1);
+    egPosition2(500, 300);
+    egTexCoord(1, 1);
+    egPosition2(600, 300);
+    egTexCoord(1, 0);
+    egPosition2(600, 200);
     egEnd();
 
     egSwap();

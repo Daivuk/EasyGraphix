@@ -78,7 +78,8 @@ extern "C"
         EG_RENDER_TARGET        = 0x02,
         EG_DEPTH_STENCIL        = 0x04,
         EG_GENERATE_NORMAL_MAP  = 0x08,
-        EG_NORMAL_MAP_OCCLUSION = 0x10
+        EG_NORMAL_MAP_OCCLUSION = 0x10,
+        EG_PRE_MULTIPLIED       = 0x20
     } EG_TEXTURE_FLAGS;
 
     typedef enum
@@ -165,8 +166,8 @@ extern "C"
     void        egSelfIllum(float intensity);
 
     EGTexture   egCreateTexture1D(uint32_t dimension, const void *pData, EG_FORMAT dataFormat);
-    EGTexture   egCreateTexture2D(uint32_t width, uint32_t height, const void *pData, EG_DATA_TYPE dataType, EG_TEXTURE_FLAGS flags);
-    EGTexture   egCreateTexture3D(uint32_t width, uint32_t height, uint32_t depth, const void *pData, EG_DATA_TYPE dataType);
+    EGTexture   egCreateTexture2D(uint32_t width, uint32_t height, const void *pData, uint32_t dataType, EG_TEXTURE_FLAGS flags);
+    EGTexture   egCreateTexture3D(uint32_t width, uint32_t height, uint32_t depth, const void *pData, uint32_t dataType);
     EGTexture   egCreateCubeMap(uint32_t dimension, const void *pData, EG_FORMAT dataFormat, EG_TEXTURE_FLAGS flags);
     void        egDestroyTexture(EGTexture *pTexture);
     void        egBindDiffuse(EGTexture texture);
