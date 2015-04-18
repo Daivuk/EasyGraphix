@@ -36,30 +36,31 @@ void draw()
 {
     egClearColor(.25f, .5f, 1, 1);
     egClear(EG_CLEAR_COLOR);
-    egSet2DViewProj(-999, 999);
 
     egBindDiffuse(texture);
 
+    egSet3DViewProj(0, 0, 15, 5, 10, 5, 0, 0, 1, 90, .1f, 10000.f);
     egBegin(EG_QUADS);
     egTexCoord(0, 0);
-    egPosition2(200, 200);
+    egPosition3(0, 10, 10);
     egTexCoord(0, 1);
-    egPosition2(200, 400);
+    egPosition3(0, 10, 0);
     egTexCoord(1, 1);
-    egPosition2(400, 400);
+    egPosition3(10, 10, 0);
     egTexCoord(1, 0);
-    egPosition2(400, 200);
+    egPosition3(10, 10, 10);
     egEnd();
 
+    egSet2DViewProj(-1, 1);
     egBegin(EG_QUADS);
     egTexCoord(0, 0);
-    egPosition2(500, 200);
+    egPosition2(0, 0);
     egTexCoord(0, 1);
-    egPosition2(500, 300);
+    egPosition2(0, 100);
     egTexCoord(1, 1);
-    egPosition2(600, 300);
+    egPosition2(100, 100);
     egTexCoord(1, 0);
-    egPosition2(600, 200);
+    egPosition2(100, 0);
     egEnd();
 
     egSwap();

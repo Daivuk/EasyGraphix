@@ -11,11 +11,11 @@
 // Shaders
 const char *g_vs =
 "\
-cbuffer mm:register(b0)\n\
+cbuffer ViewProjCB:register(b0)\n\
 {\n\
     matrix viewProj;\n\
 }\n\
-cbuffer mm:register(b1)\n\
+cbuffer ModelVB:register(b1)\n\
 {\n\
     matrix model;\n\
 }\n\
@@ -158,56 +158,7 @@ void setIdentityMatrix(SEGMatrix *pMatrix)
     pMatrix->m[10] = 1;
     pMatrix->m[15] = 1;
 }
-void setLookAtMatrix(SEGMatrix *pMatrix, float* pos, float* dir, float* in_up)
-{
-    float front[3] = {dir[0], dir[1], dir[2]};
-    float right[3];
-    float up[3];
-    float eye[3] = {-pos[0], -pos[1], -pos[2]};
-
-    v3cross(front, in_up, right);
-    v3cross(right, front, up);
-
-    v3normalize(front);
-    v3normalize(right);
-    v3normalize(up);
-
-    front[0] = -front[0];
-    front[1] = -front[1];
-    front[2] = -front[2];
-
-    pMatrix->m[0] = right[0];
-    pMatrix->m[1] = right[1];
-    pMatrix->m[2] = right[2];
-    pMatrix->m[3] = v3dot(right, eye);
-    pMatrix->m[4] = up[0];
-    pMatrix->m[5] = up[1];
-    pMatrix->m[6] = up[2];
-    pMatrix->m[7] = v3dot(up, eye);
-    pMatrix->m[8] = front[0];
-    pMatrix->m[9] = front[1];
-    pMatrix->m[10] = front[2];
-    pMatrix->m[11] = v3dot(front, eye);
-    pMatrix->m[12] = 0.f;
-    pMatrix->m[13] = 0.f;
-    pMatrix->m[14] = 0.f;
-    pMatrix->m[15] = 1.f;
-}
-void setProjectionMatrix(SEGMatrix *pMatrix, float fov, float aspect, float nearDist, float farDist, BOOL leftHanded)
-{
-    // Make result to be identity first
-    setIdentityMatrix(pMatrix);
-
-    float frustumDepth = farDist - nearDist;
-    float oneOverDepth = 1 / frustumDepth;
-
-    pMatrix->m[5] = 1.f / tanf(0.5f * fov);
-    pMatrix->m[0] = (leftHanded ? 1 : -1) * pMatrix->m[5] / aspect;
-    pMatrix->m[10] = farDist * oneOverDepth;
-    pMatrix->m[11] = (-farDist * nearDist) * oneOverDepth;
-    pMatrix->m[14] = 1;
-    pMatrix->m[15] = 0;
-}
+#define at(__row__, __col__) m[__row__ * 4 + __col__]
 void multMatrix(SEGMatrix *pM1, SEGMatrix *pM2, SEGMatrix *pMOut)
 {
     for (int i = 0; i < 4; i++)
@@ -216,10 +167,89 @@ void multMatrix(SEGMatrix *pM1, SEGMatrix *pM2, SEGMatrix *pMOut)
         {
             float n = 0;
             for (int k = 0; k < 4; k++)
-                n += pM2->m[i + k * 4] * pM1->m[k + j * 4];
-            pMOut->m[i + j * 4] = n;
+                n += pM2->at(i, k) * pM1->at(k, j);
+            pMOut->at(i, j) = n;
         }
     }
+}
+void swapf(float *a, float *b)
+{
+    float temp;
+
+    temp = *b;
+    *b = *a;
+    *a = temp;
+}
+void transposeMatrix(SEGMatrix *pMatrix)
+{
+    swapf(&pMatrix->at(0, 1), &pMatrix->at(1, 0));
+    swapf(&pMatrix->at(0, 2), &pMatrix->at(2, 0));
+    swapf(&pMatrix->at(0, 3), &pMatrix->at(3, 0));
+
+    swapf(&pMatrix->at(1, 2), &pMatrix->at(2, 1));
+    swapf(&pMatrix->at(1, 3), &pMatrix->at(3, 1));
+
+    swapf(&pMatrix->at(2, 3), &pMatrix->at(3, 2));
+}
+void setLookAtMatrix(SEGMatrix *pMatrix,
+                     float eyex, float eyey, float eyez,
+                     float centerx, float centery, float centerz,
+                     float upx, float upy, float upz)
+{
+    float forward[3], side[3], up[3];
+
+    forward[0] = centerx - eyex;
+    forward[1] = centery - eyey;
+    forward[2] = centerz - eyez;
+
+    up[0] = upx;
+    up[1] = upy;
+    up[2] = upz;
+
+    v3normalize(forward);
+
+    /* Side = forward x up */
+    v3cross(forward, up, side);
+    v3normalize(side);
+
+    /* Recompute up as: up = side x forward */
+    v3cross(side, forward, up);
+
+    SEGMatrix matrix;
+    setIdentityMatrix(&matrix);
+    matrix.at(0, 0) = side[0];
+    matrix.at(1, 0) = side[1];
+    matrix.at(2, 0) = side[2];
+
+    matrix.at(0, 1) = up[0];
+    matrix.at(1, 1) = up[1];
+    matrix.at(2, 1) = up[2];
+
+    matrix.at(0, 2) = -forward[0];
+    matrix.at(1, 2) = -forward[1];
+    matrix.at(2, 2) = -forward[2];
+
+    SEGMatrix translationMatrix;
+    setIdentityMatrix(&translationMatrix);
+    translationMatrix.m[12] = -eyex;
+    translationMatrix.m[13] = -eyey;
+    translationMatrix.m[14] = -eyez;
+    multMatrix(&matrix, &translationMatrix, pMatrix);
+    transposeMatrix(pMatrix);
+}
+void setProjectionMatrix(SEGMatrix *pMatrix, float fov, float aspect, float nearDist, float farDist)
+{
+    float yScale = 1.0f / tanf(fov / 2);
+    float xScale = yScale / aspect;
+    float nearmfar = nearDist - farDist;
+    float m[] = {
+        xScale, 0, 0, 0,
+        0, yScale, 0, 0,
+        0, 0, (farDist + nearDist) / nearmfar, -1,
+        0, 0, 2 * farDist * nearDist / nearmfar, 0
+    };
+    memcpy(pMatrix->m, m, sizeof(double) * 16);
+    transposeMatrix(pMatrix);
 }
 
 void resetStates()
@@ -645,11 +675,10 @@ void egSet3DViewProj(float eyeX, float eyeY, float eyeZ, float centerX, float ce
 
     // Projection
     float aspect = (float)pBoundDevice->backBufferDesc.Width / (float)pBoundDevice->backBufferDesc.Height;
-    setProjectionMatrix(&projectionMatrix, TO_RAD(fov), aspect, nearClip, farClip, FALSE);
+    setProjectionMatrix(&projectionMatrix, TO_RAD(fov), aspect, nearClip, farClip);
 
     // View
-    float dir[3] = {centerX - eyeX, centerY - eyeY, centerZ - eyeZ};
-    setLookAtMatrix(&viewMatrix, &eyeX, dir, &upX);
+    setLookAtMatrix(&viewMatrix, eyeX, eyeY, eyeZ, centerX, centerY, centerZ, upX, upY, upZ);
 
     // Multiply them
     multMatrix(&viewMatrix, &projectionMatrix, &viewProjMatrix);
