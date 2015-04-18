@@ -1,10 +1,79 @@
+#include <assert.h>
 #include <d3d11.h>
+#include <D3Dcompiler.h>
 #include <math.h>
 #include "eg.h"
 
 #define PI 3.1415926535897932384626433832795f
 #define TO_RAD(__deg__) (__deg__ * PI / 180.f)
 #define TO_DEG(__rad__) (__rad__ * 180.f / PI)
+
+// Shaders
+const char *g_vs =
+"\
+cbuffer mm:register(b0)\
+{\
+    matrix viewProj;\
+}\
+cbuffer mm:register(b1)\
+{\
+    matrix model;\
+}\
+struct sInput\
+{\
+    float3 position:POSITION;\
+    float3 normal:NORMAL;\
+    float2 texCoord:TEXCOORD;\
+    float4 color:COLOR;\
+};\
+struct sOutput\
+{\
+    float4 position:SV_POSITION;\
+    float3 normal:NORMAL;\
+    float2 texCoord:TEXCOORD;\
+    float4 color:COLOR;\
+};\
+sOutput main(sInput input)\
+{\
+    sOutput output;\
+    float4 worldPosition = mul(float4(input.position, 1), model);\
+    output.position = mul(worldPosition, viewProj);\
+    output.normal = mul(float4(input.normal, 0), model).xyz;\
+    output.texCoord = input.texCoord;\
+    output.color = input.color;\
+    return output;\
+}";
+
+const char *g_ps =
+"\
+Texture2D xDiffuse:register(t0);\
+SamplerState sSampler:register(s0);\
+struct sInput\
+{\
+    float4 position:SV_POSITION;\
+    float3 normal:NORMAL;\
+    float2 texCoord:TEXCOORD;\
+    float4 color:COLOR;\
+};\
+float4 main(sInput input):SV_TARGET\
+{\
+    float4 diffuse = xDiffuse.Sample(sSampler, input.texCoord);\
+    return diffuse * input.color;\
+}";
+
+ID3D11VertexShader  *pVS;
+ID3D11PixelShader   *pPS;
+ID3D11InputLayout   *pInputLayout;
+ID3D11Buffer        *pCBViewProj;
+ID3D11Buffer        *pCBModel;
+
+typedef struct
+{
+    float x, y, z;
+    float nx, ny, nz;
+    float u, v;
+    float r, g, b, a;
+} SEGVertex;
 
 // Devices
 typedef struct
@@ -50,11 +119,13 @@ typedef struct
 {
     float m[16];
 } SEGMatrix;
+#define MAX_WORLD_STACK 1024
 SEGMatrix  *worldMatrices = NULL;
 uint32_t    worldMatricesStackCount = 0;
 SEGMatrix  *pBoundWorldMatrix = NULL;
 SEGMatrix   projectionMatrix;
 SEGMatrix   viewMatrix;
+SEGMatrix   viewProjMatrix;
 void setIdentityMatrix(SEGMatrix *pMatrix)
 {
     memset(pMatrix, 0, sizeof(SEGMatrix));
@@ -131,14 +202,56 @@ void setProjectionMatrix(SEGMatrix *pMatrix, float fov, float aspect, float near
     pMatrix->m[14] = 1;
     pMatrix->m[15] = 0;
 }
+void multMatrix(SEGMatrix *pM1, SEGMatrix *pM2, SEGMatrix *pMOut)
+{
+    for (int i = 0; i < 4; i++)
+    {
+        for (int j = 0; j < 4; j++)
+        {
+            float n = 0;
+            for (int k = 0; k < 4; k++)
+                n += pM2->m[i + k * 4] * pM1->m[k + j * 4];
+            pMOut->m[i + j * 4] = n;
+        }
+    }
+}
 
 void resetStates()
 {
-    // We always reset our matrices
-    setIdentityMatrix(&projectionMatrix);
-    setIdentityMatrix(&viewMatrix);
+    worldMatricesStackCount = 0;
 
+    egSet2DViewProj(-999, 999);
     egViewPort(0, 0, (uint32_t)pBoundDevice->backBufferDesc.Width, (uint32_t)pBoundDevice->backBufferDesc.Height);
+    egModelIdentity();
+
+    pBoundDevice->pDeviceContext->lpVtbl->IASetInputLayout(pBoundDevice->pDeviceContext, pInputLayout);
+    pBoundDevice->pDeviceContext->lpVtbl->VSSetShader(pBoundDevice->pDeviceContext, pVS, NULL, 0);
+    pBoundDevice->pDeviceContext->lpVtbl->PSSetShader(pBoundDevice->pDeviceContext, pPS, NULL, 0);
+}
+
+ID3DBlob* compileShader(const char *szSource, const char *szProfile)
+{
+    ID3DBlob *shaderBlob = NULL;
+#ifdef _DEBUG
+    ID3DBlob *errorBlob = NULL;
+#endif
+
+    HRESULT result = D3DCompile(szSource, (SIZE_T)strlen(szSource), NULL, NULL, NULL, "main", szProfile,
+                            D3DCOMPILE_ENABLE_STRICTNESS 
+#ifdef _DEBUG
+                            | D3DCOMPILE_DEBUG
+#endif
+                            , 0, &shaderBlob, &errorBlob);
+
+#ifdef _DEBUG
+    if (errorBlob)
+    {
+        char *pError = (char*)errorBlob->lpVtbl->GetBufferPointer(errorBlob);
+        assert(FALSE);
+    }
+#endif
+
+    return shaderBlob;
 }
 
 EGDevice egCreateDevice(HWND windowHandle)
@@ -149,6 +262,11 @@ EGDevice egCreateDevice(HWND windowHandle)
     HRESULT                 result;
     ID3D11Texture2D        *pBackBuffer;
     ID3D11Resource         *pBackBufferRes;
+
+    if (!worldMatrices)
+    {
+        worldMatrices = (SEGMatrix*)malloc(sizeof(SEGMatrix) * MAX_WORLD_STACK);
+    }
 
     // Define our swap chain
     memset(&swapChainDesc, 0, sizeof(swapChainDesc));
@@ -186,6 +304,28 @@ EGDevice egCreateDevice(HWND windowHandle)
     devices = realloc(devices, sizeof(SEGDevice) * (deviceCount + 1));
     memcpy(devices + deviceCount, &device, sizeof(SEGDevice));
     pBoundDevice = devices + deviceCount;
+
+    // Compile shaders
+    ID3DBlob *pVSB = compileShader(g_vs, "vs_5_0");
+    ID3DBlob *pPSB = compileShader(g_ps, "ps_5_0");
+    result = device.pDevice->lpVtbl->CreateVertexShader(device.pDevice, pVSB->lpVtbl->GetBufferPointer(pVSB), pVSB->lpVtbl->GetBufferSize(pVSB), NULL, &pVS);
+    if (result != S_OK) return 0;
+    result = device.pDevice->lpVtbl->CreatePixelShader(device.pDevice, pPSB->lpVtbl->GetBufferPointer(pPSB), pPSB->lpVtbl->GetBufferSize(pPSB), NULL, &pPS);
+    if (result != S_OK) return 0;
+
+    // Input layout
+    D3D11_INPUT_ELEMENT_DESC layout[4] = {
+        {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
+        {"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0},
+        {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0},
+        {"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0}
+    };
+    device.pDevice->lpVtbl->CreateInputLayout(device.pDevice, layout, 4, pVSB->lpVtbl->GetBufferPointer(pVSB), pVSB->lpVtbl->GetBufferSize(pVSB), &pInputLayout);
+
+    // Create uniforms
+    D3D11_BUFFER_DESC cbDesc = {64, D3D11_USAGE_DYNAMIC, D3D11_BIND_CONSTANT_BUFFER, D3D11_CPU_ACCESS_WRITE, 0, 0};
+    device.pDevice->lpVtbl->CreateBuffer(device.pDevice, &cbDesc, NULL, &pCBViewProj);
+    device.pDevice->lpVtbl->CreateBuffer(device.pDevice, &cbDesc, NULL, &pCBModel);
 
     ++deviceCount;
     if (deviceCount == 1) resetStates();
@@ -239,6 +379,18 @@ void egClear(EG_CLEAR_BITFIELD clearBitFields)
     }
 }
 
+void updateViewProjCB()
+{
+    D3D11_MAPPED_SUBRESOURCE map;
+    ID3D11Resource *pRes = NULL;
+    pCBViewProj->lpVtbl->QueryInterface(pCBViewProj, &IID_ID3D11Resource, &pRes);
+    pBoundDevice->pDeviceContext->lpVtbl->Map(pBoundDevice->pDeviceContext, pRes, 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
+    memcpy(map.pData, viewProjMatrix.m, 64);
+    pBoundDevice->pDeviceContext->lpVtbl->Unmap(pBoundDevice->pDeviceContext, pRes, 0);
+    pRes->lpVtbl->Release(pRes);
+    pBoundDevice->pDeviceContext->lpVtbl->VSSetConstantBuffers(pBoundDevice->pDeviceContext, 1, 1, &pCBViewProj);
+}
+
 void egSet2DViewProj(float nearClip, float farClip)
 {
     if (!pBoundDevice) return;
@@ -257,7 +409,7 @@ void egSet2DViewProj(float nearClip, float farClip)
     projectionMatrix.m[8] = 0.f;
     projectionMatrix.m[9] = 0.f;
     projectionMatrix.m[10] = -2.f / (farClip - nearClip);
-    projectionMatrix.m[11] = 0.5f;
+    projectionMatrix.m[11] = -(farClip + nearClip) / (farClip - nearClip);
     
     projectionMatrix.m[12] = 0.f;
     projectionMatrix.m[13] = 0.f;
@@ -268,6 +420,9 @@ void egSet2DViewProj(float nearClip, float farClip)
     setIdentityMatrix(&viewMatrix);
 
     // Multiply them
+    multMatrix(&viewMatrix, &projectionMatrix, &viewProjMatrix);
+
+    updateViewProjCB();
 }
 
 void egSet3DViewProj(float eyeX, float eyeY, float eyeZ, float centerX, float centerY, float centerZ, float upX, float upY, float upZ, float fov, float nearClip, float farClip)
@@ -283,11 +438,9 @@ void egSet3DViewProj(float eyeX, float eyeY, float eyeZ, float centerX, float ce
     setLookAtMatrix(&viewMatrix, &eyeX, dir, &upX);
 
     // Multiply them
+    multMatrix(&viewMatrix, &projectionMatrix, &viewProjMatrix);
 
-    //D3D11_MAPPED_SUBRESOURCE map;
-    //deviceContext->Map(view3dBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
-    //mem_cpy(map.pData, pActiveCamera->transform, 64);
-    //deviceContext->Unmap(view3dBuffer, 0);
+    updateViewProjCB();
 }
 
 void egViewPort(uint32_t x, uint32_t y, uint32_t width, uint32_t height)
@@ -307,8 +460,25 @@ void egScissor(uint32_t x, uint32_t y, uint32_t width, uint32_t height)
 {
 }
 
+void updateModelCB()
+{
+    SEGMatrix *pModel = worldMatrices + worldMatricesStackCount;
+
+    D3D11_MAPPED_SUBRESOURCE map;
+    ID3D11Resource *pRes = NULL;
+    pCBModel->lpVtbl->QueryInterface(pCBModel, &IID_ID3D11Resource, &pRes);
+    pBoundDevice->pDeviceContext->lpVtbl->Map(pBoundDevice->pDeviceContext, pRes, 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
+    memcpy(map.pData, pModel->m, 64);
+    pBoundDevice->pDeviceContext->lpVtbl->Unmap(pBoundDevice->pDeviceContext, pRes, 0);
+    pRes->lpVtbl->Release(pRes);
+    pBoundDevice->pDeviceContext->lpVtbl->VSSetConstantBuffers(pBoundDevice->pDeviceContext, 1, 1, &pCBModel);
+}
+
 void egModelIdentity()
 {
+    SEGMatrix *pModel = worldMatrices + worldMatricesStackCount;
+    setIdentityMatrix(pModel);
+    updateModelCB();
 }
 
 void egModelTranslate(float x, float y, float z)
@@ -341,10 +511,18 @@ void egModelScalev(const float *pAxis)
 
 void egModelPush()
 {
+    if (worldMatricesStackCount == MAX_WORLD_STACK - 1) return;
+    SEGMatrix *pPrevious = worldMatrices + worldMatricesStackCount;
+    ++worldMatricesStackCount;
+    SEGMatrix *pNew = worldMatrices + worldMatricesStackCount;
+    memcpy(pNew, pPrevious, sizeof(SEGMatrix));
 }
 
 void egModelPop()
 {
+    if (!worldMatricesStackCount) return;
+    --worldMatricesStackCount;
+    updateModelCB();
 }
 
 void egBegin(EG_TOPOLOGY topology)

@@ -25,8 +25,13 @@ void draw()
 {
     egClearColor(.25f, .5f, 1, 1);
     egClear(EG_CLEAR_COLOR);
-
     egSet2DViewProj(-999, 999);
+
+    egBegin(EG_TRIANGLES);
+    egPosition2(0, 0);
+    egPosition2(0, 100);
+    egPosition2(100, 100);
+    egEnd();
 
     egSwap();
 }
@@ -46,12 +51,12 @@ LRESULT CALLBACK WinProc(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam)
 void createWindow()
 {
     // Define window style
-    WNDCLASSA wc = {0};
+    WNDCLASS wc = {0};
     wc.style = CS_OWNDC;
     wc.lpfnWndProc = WinProc;
     wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
-    wc.lpszClassName = "D";
-    RegisterClassA(&wc);
+    wc.lpszClassName = L"EasyGraphixSampleWNDC";
+    RegisterClass(&wc);
 
     // Centered position
     auto screenW = GetSystemMetrics(SM_CXSCREEN);
@@ -60,7 +65,7 @@ void createWindow()
     auto posY = (screenH - RESOLUTION_H) / 2;
 
     // Create the window
-    windowHandle = CreateWindowA("D", "",
+    windowHandle = CreateWindow(L"EasyGraphixSampleWNDC", L"Easy Graphix Sample",
                                 WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_VISIBLE,
                                 posX, posY, RESOLUTION_W, RESOLUTION_H,
                                 nullptr, nullptr, nullptr, nullptr);
