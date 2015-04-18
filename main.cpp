@@ -27,10 +27,27 @@ void draw()
     egClear(EG_CLEAR_COLOR);
     egSet2DViewProj(-999, 999);
 
-    egBegin(EG_TRIANGLES);
-    egPosition2(0, 0);
-    egPosition2(0, 100);
-    egPosition2(100, 100);
+    egBegin(EG_QUAD_STRIP);
+
+    egColor3(0, 1, 0);
+    egPosition2(200, 200);
+    egColor3(0, 0, 1);
+    egPosition2(200, 400);
+    egColor3(1, 1, 0);
+    egPosition2(400, 400);
+    egColor3(1, 0, 0);
+    egPosition2(400, 200);
+
+    egColor3(0, 0, 1);
+    egPosition2(200 + 300, 400);
+    egColor3(0, 1, 0);
+    egPosition2(200 + 300, 200);
+
+    egColor3(1, 1, 0);
+    egPosition2(400 + 300, 400);
+    egColor3(1, 0, 0);
+    egPosition2(400 + 300, 200);
+
     egEnd();
 
     egSwap();
