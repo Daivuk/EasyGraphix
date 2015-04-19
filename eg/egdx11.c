@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <stdio.h>
 #include <d3d11.h>
 #include <D3Dcompiler.h>
 #include <math.h>
@@ -8,7 +9,7 @@
 #define TO_RAD(__deg__) (__deg__ * PI / 180.f)
 #define TO_DEG(__rad__) (__rad__ * 180.f / PI)
 
-const char lastError[256] = {0};
+char lastError[256] = {0};
 
 // Shaders
 const char *g_vs =
@@ -70,6 +71,10 @@ float4 main(sInput input):SV_TARGET\n\
 #define NORMAL_MAP      1
 #define MATERIAL_MAP    2
 #define MAX_STACK       256 // Used for states and matrices
+#define G_DIFFUSE       0
+#define G_DEPTH         1
+#define G_NORMAL        2
+#define G_MATERIAL      3
 
 // Vector math
 void v3normalize(float* v)
@@ -275,6 +280,13 @@ typedef struct
     ID3D11ShaderResourceView   *pResourceView;
 } SEGTexture2D;
 
+// Render target
+typedef struct
+{
+    SEGTexture2D                texture;
+    ID3D11RenderTargetView     *pRenderTargetView;
+} SEGRenderTarget2D;
+
 // States
 typedef struct
 {
@@ -317,6 +329,7 @@ typedef struct
     SEGState                    states[MAX_STACK];
     uint32_t                    statesStackCount;
     float                       clearColor[4];
+    SEGRenderTarget2D           gBuffer[3];
 } SEGDevice;
 SEGDevice  *devices = NULL;
 uint32_t    deviceCount = 0;
@@ -510,6 +523,7 @@ void texture2DFromData(SEGTexture2D *pOut, const uint8_t* pData, UINT w, UINT h,
     result = pBoundDevice->pDevice->lpVtbl->CreateTexture2D(pBoundDevice->pDevice, &desc, (mipsData) ? mipsData : &data, &pOut->pTexture);
     if (result != S_OK)
     {
+        sprintf_s(lastError, 256, "Failed CreateTexture2D");
         return;
     }
     ID3D11Resource *pResource = NULL;
@@ -518,6 +532,7 @@ void texture2DFromData(SEGTexture2D *pOut, const uint8_t* pData, UINT w, UINT h,
     {
         pOut->pTexture->lpVtbl->Release(pOut->pTexture);
         pOut->pTexture = NULL;
+        sprintf_s(lastError, 256, "Failed QueryInterface ID3D11Texture2D -> IID_ID3D11Resource");
         return;
     }
     result = pBoundDevice->pDevice->lpVtbl->CreateShaderResourceView(pBoundDevice->pDevice, pResource, NULL, &pOut->pResourceView);
@@ -525,6 +540,8 @@ void texture2DFromData(SEGTexture2D *pOut, const uint8_t* pData, UINT w, UINT h,
     {
         pOut->pTexture->lpVtbl->Release(pOut->pTexture);
         pOut->pTexture = NULL;
+        pResource->lpVtbl->Release(pResource);
+        sprintf_s(lastError, 256, "Failed CreateShaderResourceView");
         return;
     }
     pResource->lpVtbl->Release(pResource);
@@ -533,18 +550,98 @@ void texture2DFromData(SEGTexture2D *pOut, const uint8_t* pData, UINT w, UINT h,
     if (mipsData) free(mipsData);
 }
 
+HRESULT createRenderTarget(SEGRenderTarget2D *pRenderTarget, UINT w, UINT h, DXGI_FORMAT format)
+{
+    memset(pRenderTarget, 0, sizeof(SEGRenderTarget2D));
+    D3D11_TEXTURE2D_DESC textureDesc = {0};
+    HRESULT result;
+    D3D11_RENDER_TARGET_VIEW_DESC renderTargetViewDesc = {0};
+    D3D11_SHADER_RESOURCE_VIEW_DESC shaderResourceViewDesc = {0};
+
+    // Setup the render target texture description.
+    textureDesc.Width = w;
+    textureDesc.Height = h;
+    textureDesc.MipLevels = 1;
+    textureDesc.ArraySize = 1;
+    textureDesc.Format = format;
+    textureDesc.SampleDesc.Count = 1;
+    textureDesc.Usage = D3D11_USAGE_DEFAULT;
+    textureDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+    textureDesc.CPUAccessFlags = 0;
+    textureDesc.MiscFlags = 0;
+
+    // Create the render target texture.
+    result = pBoundDevice->pDevice->lpVtbl->CreateTexture2D(pBoundDevice->pDevice, &textureDesc, NULL, &pRenderTarget->texture.pTexture);
+    if (result != S_OK)
+    {
+        sprintf_s(lastError, 256, "Failed CreateTexture2D");
+        return result;
+    }
+
+    // Setup the description of the render target view.
+    renderTargetViewDesc.Format = textureDesc.Format;
+    renderTargetViewDesc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
+    renderTargetViewDesc.Texture2D.MipSlice = 0;
+
+    // Create the render target view.
+    ID3D11Resource *pTextureRes = NULL;
+    result = pRenderTarget->texture.pTexture->lpVtbl->QueryInterface(pRenderTarget->texture.pTexture, &IID_ID3D11Resource, &pTextureRes);
+    if (result != S_OK)
+    {
+        pRenderTarget->texture.pTexture->lpVtbl->Release(pRenderTarget->texture.pTexture);
+        pRenderTarget->texture.pTexture = NULL;
+        sprintf_s(lastError, 256, "Failed QueryInterface ID3D11Texture2D -> IID_ID3D11Resource");
+        return result;
+    }
+    result = pBoundDevice->pDevice->lpVtbl->CreateRenderTargetView(pBoundDevice->pDevice, pTextureRes, &renderTargetViewDesc, &pRenderTarget->pRenderTargetView);
+    if (result != S_OK)
+    {
+        pRenderTarget->texture.pTexture->lpVtbl->Release(pRenderTarget->texture.pTexture);
+        pRenderTarget->texture.pTexture = NULL;
+        pTextureRes->lpVtbl->Release(pTextureRes);
+        sprintf_s(lastError, 256, "Failed CreateRenderTargetView");
+        return result;
+    }
+
+    // Setup the description of the shader resource view.
+    shaderResourceViewDesc.Format = textureDesc.Format;
+    shaderResourceViewDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+    shaderResourceViewDesc.Texture2D.MostDetailedMip = 0;
+    shaderResourceViewDesc.Texture2D.MipLevels = 1;
+
+    // Create the shader resource view.
+    result = pBoundDevice->pDevice->lpVtbl->CreateShaderResourceView(pBoundDevice->pDevice, pTextureRes, &shaderResourceViewDesc, &pRenderTarget->texture.pResourceView);
+    if (result != S_OK)
+    {
+        pRenderTarget->texture.pTexture->lpVtbl->Release(pRenderTarget->texture.pTexture);
+        pRenderTarget->texture.pTexture = NULL;
+        pRenderTarget->pRenderTargetView->lpVtbl->Release(pRenderTarget->pRenderTargetView);
+        pRenderTarget->pRenderTargetView = NULL;
+        pTextureRes->lpVtbl->Release(pTextureRes);
+        sprintf_s(lastError, 256, "Failed CreateShaderResourceView");
+        return result;
+    }
+    pTextureRes->lpVtbl->Release(pTextureRes);
+
+    return S_OK;
+}
+
 EGDevice egCreateDevice(HWND windowHandle)
 {
     if (bIsInBatch) return 0;
     EGDevice                ret = 0;
     DXGI_SWAP_CHAIN_DESC    swapChainDesc;
-    SEGDevice               device = {0};
     HRESULT                 result;
     ID3D11Texture2D        *pBackBuffer;
     ID3D11Resource         *pBackBufferRes;
     ID3D11Texture2D        *pDepthStencilBuffer;
 
-    //device.worldMatrices = (SEGMatrix*)malloc(sizeof(SEGMatrix) * MAX_STACK);
+    // Set as currently bound device
+    devices = realloc(devices, sizeof(SEGDevice) * (deviceCount + 1));
+    memset(devices + deviceCount, 0, sizeof(SEGDevice));
+    pBoundDevice = devices + deviceCount;
+    ++deviceCount;
+    ret = deviceCount;
 
     // Define our swap chain
     memset(&swapChainDesc, 0, sizeof(swapChainDesc));
@@ -564,25 +661,45 @@ EGDevice egCreateDevice(HWND windowHandle)
         0,
 #endif /* _DEBUG */
         NULL, 0, D3D11_SDK_VERSION,
-        &swapChainDesc, &device.pSwapChain,
-        &device.pDevice, NULL, &device.pDeviceContext);
-    if (result != S_OK) return 0;
+        &swapChainDesc, &pBoundDevice->pSwapChain,
+        &pBoundDevice->pDevice, NULL, &pBoundDevice->pDeviceContext);
+    if (result != S_OK)
+    {
+        sprintf_s(lastError, 256, "Failed D3D11CreateDeviceAndSwapChain");
+        egDestroyDevice(&ret);
+        return 0;
+    }
 
     // Create render target
-    result = device.pSwapChain->lpVtbl->GetBuffer(device.pSwapChain, 0, &IID_ID3D11Texture2D, (void**)&pBackBuffer);
-    if (result != S_OK) return 0;
-    result = device.pSwapChain->lpVtbl->GetBuffer(device.pSwapChain, 0, &IID_ID3D11Resource, (void**)&pBackBufferRes);
-    if (result != S_OK) return 0;
-    result = device.pDevice->lpVtbl->CreateRenderTargetView(device.pDevice, pBackBufferRes, NULL, &device.pRenderTargetView);
-    if (result != S_OK) return 0;
-    pBackBuffer->lpVtbl->GetDesc(pBackBuffer, &device.backBufferDesc);
+    result = pBoundDevice->pSwapChain->lpVtbl->GetBuffer(pBoundDevice->pSwapChain, 0, &IID_ID3D11Texture2D, (void**)&pBackBuffer);
+    if (result != S_OK)
+    {
+        sprintf_s(lastError, 256, "Failed IDXGISwapChain GetBuffer IID_ID3D11Texture2D");
+        egDestroyDevice(&ret);
+        return 0;
+    }
+    result = pBoundDevice->pSwapChain->lpVtbl->GetBuffer(pBoundDevice->pSwapChain, 0, &IID_ID3D11Resource, (void**)&pBackBufferRes);
+    if (result != S_OK)
+    {
+        sprintf_s(lastError, 256, "Failed IDXGISwapChain GetBuffer IID_ID3D11Resource");
+        egDestroyDevice(&ret);
+        return 0;
+    }
+    result = pBoundDevice->pDevice->lpVtbl->CreateRenderTargetView(pBoundDevice->pDevice, pBackBufferRes, NULL, &pBoundDevice->pRenderTargetView);
+    if (result != S_OK)
+    {
+        sprintf_s(lastError, 256, "Failed CreateRenderTargetView");
+        egDestroyDevice(&ret);
+        return 0;
+    }
+    pBackBuffer->lpVtbl->GetDesc(pBackBuffer, &pBoundDevice->backBufferDesc);
     pBackBufferRes->lpVtbl->Release(pBackBufferRes);
     pBackBuffer->lpVtbl->Release(pBackBuffer);
 
     // Set up the description of the depth buffer.
     D3D11_TEXTURE2D_DESC depthBufferDesc = {0};
-    depthBufferDesc.Width = device.backBufferDesc.Width;
-    depthBufferDesc.Height = device.backBufferDesc.Height;
+    depthBufferDesc.Width = pBoundDevice->backBufferDesc.Width;
+    depthBufferDesc.Height = pBoundDevice->backBufferDesc.Height;
     depthBufferDesc.MipLevels = 1;
     depthBufferDesc.ArraySize = 1;
     depthBufferDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
@@ -594,8 +711,13 @@ EGDevice egCreateDevice(HWND windowHandle)
     depthBufferDesc.MiscFlags = 0;
 
     // Create the texture for the depth buffer using the filled out description.
-    result = device.pDevice->lpVtbl->CreateTexture2D(device.pDevice, &depthBufferDesc, NULL, &pDepthStencilBuffer);
-    if (result != S_OK) return 0;
+    result = pBoundDevice->pDevice->lpVtbl->CreateTexture2D(pBoundDevice->pDevice, &depthBufferDesc, NULL, &pDepthStencilBuffer);
+    if (result != S_OK)
+    {
+        sprintf_s(lastError, 256, "Failed DepthStencil CreateTexture2D");
+        egDestroyDevice(&ret);
+        return 0;
+    }
 
     // Initailze the depth stencil view.
     D3D11_DEPTH_STENCIL_VIEW_DESC depthStencilViewDesc = {0};
@@ -605,24 +727,39 @@ EGDevice egCreateDevice(HWND windowHandle)
 
     // Create the depth stencil view.
     result = pDepthStencilBuffer->lpVtbl->QueryInterface(pDepthStencilBuffer, &IID_ID3D11Resource, (void**)&pBackBufferRes);
-    if (result != S_OK) return 0;
-    result = device.pDevice->lpVtbl->CreateDepthStencilView(device.pDevice, pBackBufferRes, &depthStencilViewDesc, &device.pDepthStencilView);
-    if (result != S_OK) return 0;
+    if (result != S_OK)
+    {
+        sprintf_s(lastError, 256, "Failed DepthStencil ID3D11Texture2D QueryInterface IID_ID3D11Resource");
+        egDestroyDevice(&ret);
+        return 0;
+    }
+    result = pBoundDevice->pDevice->lpVtbl->CreateDepthStencilView(pBoundDevice->pDevice, pBackBufferRes, &depthStencilViewDesc, &pBoundDevice->pDepthStencilView);
+    if (result != S_OK)
+    {
+        sprintf_s(lastError, 256, "Failed CreateDepthStencilView");
+        egDestroyDevice(&ret);
+        return 0;
+    }
     pBackBufferRes->lpVtbl->Release(pBackBufferRes);
     pDepthStencilBuffer->lpVtbl->Release(pDepthStencilBuffer);
-
-    // Set as currently bound device
-    devices = realloc(devices, sizeof(SEGDevice) * (deviceCount + 1));
-    memcpy(devices + deviceCount, &device, sizeof(SEGDevice));
-    pBoundDevice = devices + deviceCount;
 
     // Compile shaders
     ID3DBlob *pVSB = compileShader(g_vs, "vs_5_0");
     ID3DBlob *pPSB = compileShader(g_ps, "ps_5_0");
-    result = device.pDevice->lpVtbl->CreateVertexShader(device.pDevice, pVSB->lpVtbl->GetBufferPointer(pVSB), pVSB->lpVtbl->GetBufferSize(pVSB), NULL, &pBoundDevice->pVS);
-    if (result != S_OK) return 0;
-    result = device.pDevice->lpVtbl->CreatePixelShader(device.pDevice, pPSB->lpVtbl->GetBufferPointer(pPSB), pPSB->lpVtbl->GetBufferSize(pPSB), NULL, &pBoundDevice->pPS);
-    if (result != S_OK) return 0;
+    result = pBoundDevice->pDevice->lpVtbl->CreateVertexShader(pBoundDevice->pDevice, pVSB->lpVtbl->GetBufferPointer(pVSB), pVSB->lpVtbl->GetBufferSize(pVSB), NULL, &pBoundDevice->pVS);
+    if (result != S_OK)
+    {
+        sprintf_s(lastError, 256, "Failed CreateVertexShader");
+        egDestroyDevice(&ret);
+        return 0;
+    }
+    result = pBoundDevice->pDevice->lpVtbl->CreatePixelShader(pBoundDevice->pDevice, pPSB->lpVtbl->GetBufferPointer(pPSB), pPSB->lpVtbl->GetBufferSize(pPSB), NULL, &pBoundDevice->pPS);
+    if (result != S_OK)
+    {
+        sprintf_s(lastError, 256, "Failed CreatePixelShader");
+        egDestroyDevice(&ret);
+        return 0;
+    }
 
     // Input layout
     D3D11_INPUT_ELEMENT_DESC layout[4] = {
@@ -631,12 +768,30 @@ EGDevice egCreateDevice(HWND windowHandle)
         {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0},
         {"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0}
     };
-    device.pDevice->lpVtbl->CreateInputLayout(device.pDevice, layout, 4, pVSB->lpVtbl->GetBufferPointer(pVSB), pVSB->lpVtbl->GetBufferSize(pVSB), &pBoundDevice->pInputLayout);
+    result = pBoundDevice->pDevice->lpVtbl->CreateInputLayout(pBoundDevice->pDevice, layout, 4, pVSB->lpVtbl->GetBufferPointer(pVSB), pVSB->lpVtbl->GetBufferSize(pVSB), &pBoundDevice->pInputLayout);
+    if (result != S_OK)
+    {
+        sprintf_s(lastError, 256, "Failed CreateInputLayout");
+        egDestroyDevice(&ret);
+        return 0;
+    }
 
     // Create uniforms
     D3D11_BUFFER_DESC cbDesc = {64, D3D11_USAGE_DYNAMIC, D3D11_BIND_CONSTANT_BUFFER, D3D11_CPU_ACCESS_WRITE, 0, 0};
-    device.pDevice->lpVtbl->CreateBuffer(device.pDevice, &cbDesc, NULL, &pBoundDevice->pCBViewProj);
-    device.pDevice->lpVtbl->CreateBuffer(device.pDevice, &cbDesc, NULL, &pBoundDevice->pCBModel);
+    result = pBoundDevice->pDevice->lpVtbl->CreateBuffer(pBoundDevice->pDevice, &cbDesc, NULL, &pBoundDevice->pCBViewProj);
+    if (result != S_OK)
+    {
+        sprintf_s(lastError, 256, "Failed CreateBuffer CBViewProj");
+        egDestroyDevice(&ret);
+        return 0;
+    }
+    result = pBoundDevice->pDevice->lpVtbl->CreateBuffer(pBoundDevice->pDevice, &cbDesc, NULL, &pBoundDevice->pCBModel);
+    if (result != S_OK)
+    {
+        sprintf_s(lastError, 256, "Failed CreateBuffer CBModel");
+        egDestroyDevice(&ret);
+        return 0;
+    }
 
     // Create our geometry batch vertex buffer that will be used to batch everything
     D3D11_BUFFER_DESC vertexBufferDesc;
@@ -646,26 +801,86 @@ EGDevice egCreateDevice(HWND windowHandle)
     vertexBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
     vertexBufferDesc.MiscFlags = 0;
     vertexBufferDesc.StructureByteStride = 0;
-    device.pDevice->lpVtbl->CreateBuffer(device.pDevice, &vertexBufferDesc, NULL, &pBoundDevice->pVertexBuffer);
-    pBoundDevice->pVertexBuffer->lpVtbl->QueryInterface(pBoundDevice->pVertexBuffer, &IID_ID3D11Resource, &pBoundDevice->pVertexBufferRes);
+    result = pBoundDevice->pDevice->lpVtbl->CreateBuffer(pBoundDevice->pDevice, &vertexBufferDesc, NULL, &pBoundDevice->pVertexBuffer);
+    if (result != S_OK)
+    {
+        sprintf_s(lastError, 256, "Failed CreateBuffer VertexBuffer");
+        egDestroyDevice(&ret);
+        return 0;
+    }
+    result = pBoundDevice->pVertexBuffer->lpVtbl->QueryInterface(pBoundDevice->pVertexBuffer, &IID_ID3D11Resource, &pBoundDevice->pVertexBufferRes);
+    if (result != S_OK)
+    {
+        sprintf_s(lastError, 256, "Failed VertexBuffer ID3D11Buffer QueryInterface -> IID_ID3D11Resource");
+        egDestroyDevice(&ret);
+        return 0;
+    }
 
     // Create a white texture for default rendering
     {
         uint8_t pixel[4] = {255, 255, 255, 255};
         texture2DFromData(pBoundDevice->pDefaultTextureMaps + DIFFUSE_MAP, pixel, 1, 1, FALSE);
+        if (!pBoundDevice->pDefaultTextureMaps[DIFFUSE_MAP].pTexture)
+        {
+            egDestroyDevice(&ret);
+            return 0;
+        }
     }
     {
         uint8_t pixel[4] = {128, 128, 255, 255};
         texture2DFromData(pBoundDevice->pDefaultTextureMaps + NORMAL_MAP, pixel, 1, 1, FALSE);
+        if (!pBoundDevice->pDefaultTextureMaps[NORMAL_MAP].pTexture)
+        {
+            egDestroyDevice(&ret);
+            return 0;
+        }
     }
     {
         uint8_t pixel[4] = {0, 0, 0, 0};
         texture2DFromData(pBoundDevice->pDefaultTextureMaps + MATERIAL_MAP, pixel, 1, 1, FALSE);
+        if (!pBoundDevice->pDefaultTextureMaps[MATERIAL_MAP].pTexture)
+        {
+            egDestroyDevice(&ret);
+            return 0;
+        }
     }
 
-    ++deviceCount;
+    // Create our G-Buffer
+    result = createRenderTarget(pBoundDevice->gBuffer + G_DIFFUSE,
+                       pBoundDevice->backBufferDesc.Width, pBoundDevice->backBufferDesc.Height,
+                       DXGI_FORMAT_R8G8B8A8_UNORM);
+    if (result != S_OK)
+    {
+        egDestroyDevice(&ret);
+        return 0;
+    }
+    result = createRenderTarget(pBoundDevice->gBuffer + G_DEPTH,
+                       pBoundDevice->backBufferDesc.Width, pBoundDevice->backBufferDesc.Height,
+                       DXGI_FORMAT_R32_FLOAT);
+    if (result != S_OK)
+    {
+        egDestroyDevice(&ret);
+        return 0;
+    }
+    result = createRenderTarget(pBoundDevice->gBuffer + G_NORMAL,
+                       pBoundDevice->backBufferDesc.Width, pBoundDevice->backBufferDesc.Height,
+                       DXGI_FORMAT_R8G8B8A8_UNORM);
+    if (result != S_OK)
+    {
+        egDestroyDevice(&ret);
+        return 0;
+    }
+    result = createRenderTarget(pBoundDevice->gBuffer + G_MATERIAL,
+                       pBoundDevice->backBufferDesc.Width, pBoundDevice->backBufferDesc.Height,
+                       DXGI_FORMAT_R8G8B8A8_UNORM);
+    if (result != S_OK)
+    {
+        egDestroyDevice(&ret);
+        return 0;
+    }
+
     resetStates();
-    return deviceCount;
+    return ret;
 }
 
 void updateState()
@@ -736,27 +951,23 @@ void egDestroyDevice(EGDevice *pDeviceID)
         }
     }
 
-    pDevice->pVertexBufferRes->lpVtbl->Release(pDevice->pVertexBufferRes);
-    pDevice->pVertexBuffer->lpVtbl->Release(pDevice->pVertexBuffer);
+    if (pDevice->pVertexBufferRes) pDevice->pVertexBufferRes->lpVtbl->Release(pDevice->pVertexBufferRes);
+    if (pDevice->pVertexBuffer) pDevice->pVertexBuffer->lpVtbl->Release(pDevice->pVertexBuffer);
 
-    pDevice->pCBModel->lpVtbl->Release(pDevice->pCBModel);
-    pDevice->pCBViewProj->lpVtbl->Release(pDevice->pCBViewProj);
+    if (pDevice->pCBModel) pDevice->pCBModel->lpVtbl->Release(pDevice->pCBModel);
+    if (pDevice->pCBViewProj) pDevice->pCBViewProj->lpVtbl->Release(pDevice->pCBViewProj);
 
-    pDevice->pInputLayout->lpVtbl->Release(pDevice->pInputLayout);
-    pDevice->pPS->lpVtbl->Release(pDevice->pPS);
-    pDevice->pVS->lpVtbl->Release(pDevice->pVS);
+    if (pDevice->pInputLayout) pDevice->pInputLayout->lpVtbl->Release(pDevice->pInputLayout);
+    if (pDevice->pPS) pDevice->pPS->lpVtbl->Release(pDevice->pPS);
+    if (pDevice->pVS) pDevice->pVS->lpVtbl->Release(pDevice->pVS);
 
-    pDevice->pDepthStencilView->lpVtbl->Release(pDevice->pDepthStencilView);
-    pDevice->pRenderTargetView->lpVtbl->Release(pDevice->pRenderTargetView);
-    pDevice->pDeviceContext->lpVtbl->Release(pDevice->pDeviceContext);
-    pDevice->pDevice->lpVtbl->Release(pDevice->pDevice);
-    pDevice->pSwapChain->lpVtbl->Release(pDevice->pSwapChain);
+    if (pDevice->pDepthStencilView) pDevice->pDepthStencilView->lpVtbl->Release(pDevice->pDepthStencilView);
+    if (pDevice->pRenderTargetView) pDevice->pRenderTargetView->lpVtbl->Release(pDevice->pRenderTargetView);
+    if (pDevice->pDeviceContext) pDevice->pDeviceContext->lpVtbl->Release(pDevice->pDeviceContext);
+    if (pDevice->pDevice) pDevice->pDevice->lpVtbl->Release(pDevice->pDevice);
+    if (pDevice->pSwapChain) pDevice->pSwapChain->lpVtbl->Release(pDevice->pSwapChain);
 
-    if (*pDeviceID < deviceCount - 1)
-    {
-        memcpy(pDevice, pDevice + 1, sizeof(SEGDevice) * (deviceCount - *pDeviceID - 1));
-    }
-    --deviceCount;
+    memset(pDevice, 0, sizeof(SEGDevice));
     *pDeviceID = 0;
 }
 
@@ -1295,21 +1506,36 @@ void egDestroyTexture(EGTexture *pTexture)
 void egBindDiffuse(EGTexture texture)
 {
     if (!pBoundDevice) return;
-    if (texture > pBoundDevice->textureCount || !texture) return;
+    if (!texture)
+    {
+        pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->pDefaultTextureMaps[DIFFUSE_MAP].pResourceView);
+        return;
+    }
+    if (texture > pBoundDevice->textureCount) return;
     pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->textures[texture - 1].pResourceView);
 }
 
 void egBindNormal(EGTexture texture)
 {
     if (!pBoundDevice) return;
-    if (texture >= pBoundDevice->textureCount || !texture) return;
+    if (!texture)
+    {
+        pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->pDefaultTextureMaps[NORMAL_MAP].pResourceView);
+        return;
+    }
+    if (texture >= pBoundDevice->textureCount) return;
     pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 1, 1, &pBoundDevice->textures[texture - 1].pResourceView);
 }
 
 void egBindMaterial(EGTexture texture)
 {
     if (!pBoundDevice) return;
-    if (texture >= pBoundDevice->textureCount || !texture) return;
+    if (!texture)
+    {
+        pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->pDefaultTextureMaps[MATERIAL_MAP].pResourceView);
+        return;
+    }
+    if (texture >= pBoundDevice->textureCount) return;
     pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 2, 1, &pBoundDevice->textures[texture - 1].pResourceView);
 }
 

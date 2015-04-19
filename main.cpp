@@ -34,25 +34,41 @@ void update()
 
 void draw()
 {
-    egClearColor(.25f, .5f, 1, 1);
+    egClearColor(0, 0, 0, 1);
     egClear(EG_CLEAR_COLOR | EG_CLEAR_DEPTH_STENCIL);
 
-    egBindDiffuse(texture);
+    egModelIdentity();
 
-    egSet3DViewProj(-10, -10, 10, 0, 0, 0, 0, 0, 1, 90, .1f, 10000.f);
+    egSet3DViewProj(-15, -15, 10, 0, 0, 0, 0, 0, 1, 90, .1f, 10000.f);
     egEnable(EG_DEPTH_TEST);
 
     static float rotation = 0.f;
     rotation += 1.f;
 
-    egModelIdentity();
+    egColor3(1, 1, 1);
+    egBindDiffuse(0);
+    egModelPush();
+    egModelScale(200, 200, 1);
+    egModelTranslate(0, 0, -5);
+    egCube(1);
+    egModelPop();
+
+    egBindDiffuse(texture);
     egModelRotate(rotation, 0, 0, 1);
     egColor3(1, .5f, .5f);
     egCube(5);
 
+    egStatePush();
+    egModelPush();
     egDisable(EG_DEPTH_TEST);
     egModelTranslate(0, -10, 0);
     egColor3(.5f, 1, .5f);
+    egCube(5);
+    egModelPop();
+    egStatePop();
+
+    egModelTranslate(-10, 0, 0);
+    egColor3(.5f, .5f, 1);
     egCube(5);
 
     egSwap();
