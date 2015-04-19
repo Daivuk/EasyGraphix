@@ -1225,17 +1225,21 @@ void egEnable(EG_ENABLE_BITS stateBits)
 {
     if (!pBoundDevice) return;
     SEGState *pState = pBoundDevice->states + pBoundDevice->statesStackCount;
+    SEGState *pPreviousState = pState;
+    if (pBoundDevice->statesStackCount) --pPreviousState;
     switch (stateBits)
     {
         case EG_BLEND:
             if (pState->blend.RenderTarget->BlendEnable) break;
             pState->blend.RenderTarget->BlendEnable = TRUE;
             pState->blendDirty = TRUE;
+            pPreviousState->blendDirty = TRUE;
             break;
         case EG_DEPTH_TEST:
             if (pState->depth.DepthEnable) break;
             pState->depth.DepthEnable = TRUE;
             pState->depthDirty = TRUE;
+            pPreviousState->depthDirty = TRUE;
             break;
     }
 }
@@ -1244,17 +1248,21 @@ void egDisable(EG_ENABLE_BITS stateBits)
 {
     if (!pBoundDevice) return;
     SEGState *pState = pBoundDevice->states + pBoundDevice->statesStackCount;
+    SEGState *pPreviousState = pState;
+    if (pBoundDevice->statesStackCount) --pPreviousState;
     switch (stateBits)
     {
         case EG_BLEND:
             if (!pState->blend.RenderTarget->BlendEnable) break;
             pState->blend.RenderTarget->BlendEnable = FALSE;
             pState->blendDirty = TRUE;
+            pPreviousState->blendDirty = TRUE;
             break;
         case EG_DEPTH_TEST:
             if (!pState->depth.DepthEnable) break;
             pState->depth.DepthEnable = FALSE;
             pState->depthDirty = TRUE;
+            pPreviousState->depthDirty = TRUE;
             break;
     }
 }
@@ -1300,17 +1308,21 @@ void egBlendFunc(EG_BLEND_FACTOR src, EG_BLEND_FACTOR dst)
 {
     if (!pBoundDevice) return;
     SEGState *pState = pBoundDevice->states + pBoundDevice->statesStackCount;
+    SEGState *pPreviousState = pState;
+    if (pBoundDevice->statesStackCount) --pPreviousState;
     D3D11_BLEND dxSrc = blendFactorToDX(src);
     D3D11_BLEND dxDst = blendFactorToDX(dst);
     if (pState->blend.RenderTarget->SrcBlend != dxSrc)
     {
         pState->blend.RenderTarget->SrcBlend = dxSrc;
         pState->blendDirty = TRUE;
+        pPreviousState->blendDirty = TRUE;
     }
     if (pState->blend.RenderTarget->DestBlend != dxDst)
     {
         pState->blend.RenderTarget->DestBlend = dxDst;
         pState->blendDirty = TRUE;
+        pPreviousState->blendDirty = TRUE;
     }
 }
 

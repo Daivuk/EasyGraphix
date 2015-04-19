@@ -49,12 +49,17 @@ void draw()
     egColor3(1, .5f, .5f);
     egCube(5);
 
+    egStatePush();
     egEnable(EG_BLEND);
     egBlendFunc(EG_ONE, EG_ONE_MINUS_SRC_ALPHA);
     egModelTranslate(20, 0, 0);
     egColor4(.5f, 1, .5f, .5);
     egCube(5);
-    egDisable(EG_BLEND);
+    egStatePop();
+
+    egModelTranslate(-30, 10, 0);
+    egColor4(.5f, .5f, 1, .5);
+    egCube(5);
 
     egSet2DViewProj(-1, 1);
     egModelIdentity();
