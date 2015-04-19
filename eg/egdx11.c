@@ -928,26 +928,56 @@ void egDestroyDevice(EGDevice *pDeviceID)
     for (uint32_t i = 0; i < pDevice->textureCount; ++i)
     {
         SEGTexture2D *pTexture = pDevice->textures + i;
-        if (pTexture->pTexture)
+        if (pTexture)
         {
-            pTexture->pTexture->lpVtbl->Release(pTexture->pTexture);
-        }
-        if (pTexture->pResourceView)
-        {
-            pTexture->pResourceView->lpVtbl->Release(pTexture->pResourceView);
+            if (pTexture->pTexture)
+            {
+                pTexture->pTexture->lpVtbl->Release(pTexture->pTexture);
+            }
+            if (pTexture->pResourceView)
+            {
+                pTexture->pResourceView->lpVtbl->Release(pTexture->pResourceView);
+            }
         }
     }
 
     for (uint32_t i = 0; i < 3; ++i)
     {
         SEGTexture2D *pTexture = pDevice->pDefaultTextureMaps + i;
-        if (pTexture->pTexture)
+        if (pTexture)
         {
-            pTexture->pTexture->lpVtbl->Release(pTexture->pTexture);
+            if (pTexture->pTexture)
+            {
+                pTexture->pTexture->lpVtbl->Release(pTexture->pTexture);
+            }
+            if (pTexture->pResourceView)
+            {
+                pTexture->pResourceView->lpVtbl->Release(pTexture->pResourceView);
+            }
         }
-        if (pTexture->pResourceView)
+    }
+
+    for (uint32_t i = 0; i < 4; ++i)
+    {
+        SEGRenderTarget2D *pRenderTarget = pDevice->gBuffer + i;
+        if (pRenderTarget)
         {
-            pTexture->pResourceView->lpVtbl->Release(pTexture->pResourceView);
+            SEGTexture2D *pTexture = &pRenderTarget->texture;
+            if (pTexture)
+            {
+                if (pTexture->pTexture)
+                {
+                    pTexture->pTexture->lpVtbl->Release(pTexture->pTexture);
+                }
+                if (pTexture->pResourceView)
+                {
+                    pTexture->pResourceView->lpVtbl->Release(pTexture->pResourceView);
+                }
+            }
+            if (pRenderTarget->pRenderTargetView)
+            {
+                pRenderTarget->pRenderTargetView->lpVtbl->Release(pRenderTarget->pRenderTargetView);
+            }
         }
     }
 
