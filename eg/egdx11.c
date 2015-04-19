@@ -710,6 +710,42 @@ void egDestroyDevice(EGDevice *pDeviceID)
     if (bIsInBatch) return;
     SEGDevice *pDevice = devices + (*pDeviceID - 1);
 
+    for (uint32_t i = 0; i < pDevice->textureCount; ++i)
+    {
+        SEGTexture2D *pTexture = pDevice->textures + i;
+        if (pTexture->pTexture)
+        {
+            pTexture->pTexture->lpVtbl->Release(pTexture->pTexture);
+        }
+        if (pTexture->pResourceView)
+        {
+            pTexture->pResourceView->lpVtbl->Release(pTexture->pResourceView);
+        }
+    }
+
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        SEGTexture2D *pTexture = pDevice->pDefaultTextureMaps + i;
+        if (pTexture->pTexture)
+        {
+            pTexture->pTexture->lpVtbl->Release(pTexture->pTexture);
+        }
+        if (pTexture->pResourceView)
+        {
+            pTexture->pResourceView->lpVtbl->Release(pTexture->pResourceView);
+        }
+    }
+
+    pDevice->pVertexBufferRes->lpVtbl->Release(pDevice->pVertexBufferRes);
+    pDevice->pVertexBuffer->lpVtbl->Release(pDevice->pVertexBuffer);
+
+    pDevice->pCBModel->lpVtbl->Release(pDevice->pCBModel);
+    pDevice->pCBViewProj->lpVtbl->Release(pDevice->pCBViewProj);
+
+    pDevice->pInputLayout->lpVtbl->Release(pDevice->pInputLayout);
+    pDevice->pPS->lpVtbl->Release(pDevice->pPS);
+    pDevice->pVS->lpVtbl->Release(pDevice->pVS);
+
     pDevice->pDepthStencilView->lpVtbl->Release(pDevice->pDepthStencilView);
     pDevice->pRenderTargetView->lpVtbl->Release(pDevice->pRenderTargetView);
     pDevice->pDeviceContext->lpVtbl->Release(pDevice->pDeviceContext);
