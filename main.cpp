@@ -41,16 +41,20 @@ void draw()
 
     egSet3DViewProj(-10, -10, 10, 0, 0, 0, 0, 0, 1, 90, .1f, 10000.f);
 
-    egEnable(EG_DEPTH_TEST);
+    //egEnable(EG_DEPTH_TEST);
     static float rotation = 0.f;
     rotation += 1.f;
     egModelScale(.5f, 2.0f, 1);
     egModelRotate(rotation, 0, 0, 1);
     egColor3(1, .5f, .5f);
     egCube(5);
+
+    egEnable(EG_BLEND);
+    egBlendFunc(EG_ONE, EG_ONE_MINUS_SRC_ALPHA);
     egModelTranslate(20, 0, 0);
-    egColor3(.5f, 1, .5f);
+    egColor4(.5f, 1, .5f, .5);
     egCube(5);
+    egDisable(EG_BLEND);
 
     egSet2DViewProj(-1, 1);
     egModelIdentity();

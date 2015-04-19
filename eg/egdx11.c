@@ -313,21 +313,47 @@ typedef struct
     SEGMatrix                   viewProjMatrix;
     SEGState                    states[MAX_STACK];
     uint32_t                    statesStackCount;
+    float                       clearColor[4];
 } SEGDevice;
 SEGDevice  *devices = NULL;
 uint32_t    deviceCount = 0;
 SEGDevice  *pBoundDevice = NULL;
 
 // Clear states
-float clearColor[4] = {0};
 
 void resetStates()
 {
-    pBoundDevice->worldMatricesStackCount = 0;
+    SEGState *pState = pBoundDevice->states + pBoundDevice->statesStackCount;
+    memset(pState, 0, sizeof(SEGState));
 
     egSet2DViewProj(-999, 999);
     egViewPort(0, 0, (uint32_t)pBoundDevice->backBufferDesc.Width, (uint32_t)pBoundDevice->backBufferDesc.Height);
     egModelIdentity();
+
+    pState->rasterizer.FillMode = D3D11_FILL_SOLID;
+    pState->rasterizer.CullMode = D3D11_CULL_NONE;
+    for (int i = 0; i < 8; ++i)
+    {
+        pState->blend.RenderTarget[i].BlendEnable = FALSE;
+        pState->blend.RenderTarget[i].SrcBlend = D3D11_BLEND_ONE;
+        pState->blend.RenderTarget[i].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+        pState->blend.RenderTarget[i].BlendOp = D3D11_BLEND_OP_ADD;
+        pState->blend.RenderTarget[i].SrcBlendAlpha = D3D11_BLEND_ONE;
+        pState->blend.RenderTarget[i].DestBlendAlpha = D3D11_BLEND_ONE;
+        pState->blend.RenderTarget[i].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+        pState->blend.RenderTarget[i].RenderTargetWriteMask = D3D10_COLOR_WRITE_ENABLE_ALL;
+    }
+    pState->sampler.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+    pState->sampler.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+    pState->sampler.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+    pState->sampler.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+    pState->sampler.MaxAnisotropy = 1;
+    pState->sampler.ComparisonFunc = D3D11_COMPARISON_ALWAYS;
+    pState->sampler.MaxLOD = D3D11_FLOAT32_MAX;
+    pState->blendDirty = TRUE;
+    pState->depthDirty = TRUE;
+    pState->rasterizerDirty = TRUE;
+    pState->samplerDirty = TRUE;
 
     pBoundDevice->pDeviceContext->lpVtbl->IASetInputLayout(pBoundDevice->pDeviceContext, pBoundDevice->pInputLayout);
     pBoundDevice->pDeviceContext->lpVtbl->VSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pVS, NULL, 0);
@@ -562,54 +588,6 @@ EGDevice egCreateDevice(HWND windowHandle)
     device.pDevice->lpVtbl->CreateBuffer(device.pDevice, &cbDesc, NULL, &pBoundDevice->pCBViewProj);
     device.pDevice->lpVtbl->CreateBuffer(device.pDevice, &cbDesc, NULL, &pBoundDevice->pCBModel);
 
-    // ------------- TEMP ------------
-    ID3D11DepthStencilState*    pDs2D;
-    ID3D11RasterizerState*      pSr2D;
-    ID3D11BlendState*           pBs2D;
-    ID3D11SamplerState*         pSs2D;
-    {
-        D3D11_DEPTH_STENCIL_DESC depthDesc = {0};
-        device.pDevice->lpVtbl->CreateDepthStencilState(device.pDevice, &depthDesc, &pDs2D);
-    }
-    {
-        D3D11_RASTERIZER_DESC rasterizerDesc = {0};
-        rasterizerDesc.FillMode = D3D11_FILL_SOLID;
-        rasterizerDesc.CullMode = D3D11_CULL_NONE;
-        device.pDevice->lpVtbl->CreateRasterizerState(device.pDevice, &rasterizerDesc, &pSr2D);
-    }
-    {
-        D3D11_BLEND_DESC blendDesc = {0};
-        blendDesc.RenderTarget->BlendEnable = TRUE;
-        blendDesc.RenderTarget->SrcBlend = D3D11_BLEND_ONE;
-        blendDesc.RenderTarget->DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
-        blendDesc.RenderTarget->BlendOp = D3D11_BLEND_OP_ADD;
-        blendDesc.RenderTarget->SrcBlendAlpha = D3D11_BLEND_ONE;
-        blendDesc.RenderTarget->DestBlendAlpha = D3D11_BLEND_ONE;
-        blendDesc.RenderTarget->BlendOpAlpha = D3D11_BLEND_OP_ADD;
-        blendDesc.RenderTarget->RenderTargetWriteMask = D3D10_COLOR_WRITE_ENABLE_ALL;
-        device.pDevice->lpVtbl->CreateBlendState(device.pDevice, &blendDesc, &pBs2D);
-    }
-    {
-        D3D11_SAMPLER_DESC samplerDesc = {0};
-        samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
-        samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
-        samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
-        samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
-        samplerDesc.MaxAnisotropy = 1;
-        samplerDesc.ComparisonFunc = D3D11_COMPARISON_ALWAYS;
-        samplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
-        device.pDevice->lpVtbl->CreateSamplerState(device.pDevice, &samplerDesc, &pSs2D);
-    }
-    device.pDeviceContext->lpVtbl->OMSetDepthStencilState(device.pDeviceContext, pDs2D, 1);
-    device.pDeviceContext->lpVtbl->RSSetState(device.pDeviceContext, pSr2D);
-    device.pDeviceContext->lpVtbl->OMSetBlendState(device.pDeviceContext, pBs2D, NULL, 0xffffffff);
-    device.pDeviceContext->lpVtbl->PSSetSamplers(device.pDeviceContext, 0, 1, &pSs2D);
-    pDs2D->lpVtbl->Release(pDs2D);
-    pSr2D->lpVtbl->Release(pSr2D);
-    pBs2D->lpVtbl->Release(pBs2D);
-    pSs2D->lpVtbl->Release(pSs2D);
-    // ------------- END TEMP ------------
-
     // Create our geometry batch vertex buffer that will be used to batch everything
     D3D11_BUFFER_DESC vertexBufferDesc;
     vertexBufferDesc.Usage = D3D11_USAGE_DYNAMIC;
@@ -661,10 +639,18 @@ void updateState()
     }
     if (pState->blendDirty)
     {
+        ID3D11BlendState *pBs2D;
+        pBoundDevice->pDevice->lpVtbl->CreateBlendState(pBoundDevice->pDevice, &pState->blend, &pBs2D);
+        pBoundDevice->pDeviceContext->lpVtbl->OMSetBlendState(pBoundDevice->pDeviceContext, pBs2D, NULL, 0xffffffff);
+        pBs2D->lpVtbl->Release(pBs2D);
         pState->blendDirty = FALSE;
     }
     if (pState->samplerDirty)
     {
+        ID3D11SamplerState *pSs2D;
+        pBoundDevice->pDevice->lpVtbl->CreateSamplerState(pBoundDevice->pDevice, &pState->sampler, &pSs2D);
+        pBoundDevice->pDeviceContext->lpVtbl->PSSetSamplers(pBoundDevice->pDeviceContext, 0, 1, &pSs2D);
+        pSs2D->lpVtbl->Release(pSs2D);
         pState->samplerDirty = FALSE;
     }
 }
@@ -698,16 +684,18 @@ void egSwap()
     if (bIsInBatch) return;
     if (!pBoundDevice) return;
     pBoundDevice->pSwapChain->lpVtbl->Present(pBoundDevice->pSwapChain, 1, 0);
-
-    resetStates();
+    pBoundDevice->worldMatricesStackCount = 0;
+    pBoundDevice->statesStackCount = 0;
 }
 
 void egClearColor(float r, float g, float b, float a)
 {
-    clearColor[0] = r;
-    clearColor[1] = g;
-    clearColor[2] = b;
-    clearColor[3] = a;
+    if (!pBoundDevice) return;
+
+    pBoundDevice->clearColor[0] = r;
+    pBoundDevice->clearColor[1] = g;
+    pBoundDevice->clearColor[2] = b;
+    pBoundDevice->clearColor[3] = a;
 }
 
 void egClear(EG_CLEAR_BITFIELD clearBitFields)
@@ -716,7 +704,7 @@ void egClear(EG_CLEAR_BITFIELD clearBitFields)
     if (!pBoundDevice) return;
     if (clearBitFields & EG_CLEAR_COLOR)
     {
-        pBoundDevice->pDeviceContext->lpVtbl->ClearRenderTargetView(pBoundDevice->pDeviceContext, pBoundDevice->pRenderTargetView, clearColor);
+        pBoundDevice->pDeviceContext->lpVtbl->ClearRenderTargetView(pBoundDevice->pDeviceContext, pBoundDevice->pRenderTargetView, pBoundDevice->clearColor);
     }
 }
 
@@ -1024,6 +1012,9 @@ void flush()
 
     pBoundDevice->pDeviceContext->lpVtbl->Unmap(pBoundDevice->pDeviceContext, pBoundDevice->pVertexBufferRes, 0);
 
+    // Make sure states are up to date
+    updateState();
+
     const UINT stride = sizeof(SEGVertex);
     const UINT offset = 0;
     pBoundDevice->pDeviceContext->lpVtbl->IASetVertexBuffers(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->pVertexBuffer, &stride, &offset);
@@ -1232,23 +1223,39 @@ void egBindMaterial(EGTexture texture)
 
 void egEnable(EG_ENABLE_BITS stateBits)
 {
+    if (!pBoundDevice) return;
+    SEGState *pState = pBoundDevice->states + pBoundDevice->statesStackCount;
     switch (stateBits)
     {
-        case EG_DEPTH_TEST:
-        {
+        case EG_BLEND:
+            if (pState->blend.RenderTarget->BlendEnable) break;
+            pState->blend.RenderTarget->BlendEnable = TRUE;
+            pState->blendDirty = TRUE;
             break;
-        }
+        case EG_DEPTH_TEST:
+            if (pState->depth.DepthEnable) break;
+            pState->depth.DepthEnable = TRUE;
+            pState->depthDirty = TRUE;
+            break;
     }
 }
 
 void egDisable(EG_ENABLE_BITS stateBits)
 {
+    if (!pBoundDevice) return;
+    SEGState *pState = pBoundDevice->states + pBoundDevice->statesStackCount;
     switch (stateBits)
     {
-        case EG_DEPTH_TEST:
-        {
+        case EG_BLEND:
+            if (!pState->blend.RenderTarget->BlendEnable) break;
+            pState->blend.RenderTarget->BlendEnable = FALSE;
+            pState->blendDirty = TRUE;
             break;
-        }
+        case EG_DEPTH_TEST:
+            if (!pState->depth.DepthEnable) break;
+            pState->depth.DepthEnable = FALSE;
+            pState->depthDirty = TRUE;
+            break;
     }
 }
 
@@ -1268,6 +1275,43 @@ void egStatePop()
     if (!pBoundDevice->statesStackCount) return;
     --pBoundDevice->statesStackCount;
     updateState();
+}
+
+D3D11_BLEND blendFactorToDX(EG_BLEND_FACTOR factor)
+{
+    switch (factor)
+    {
+        case EG_ZERO:                   return D3D11_BLEND_ZERO;
+        case EG_ONE:                    return D3D11_BLEND_ONE;
+        case EG_SRC_COLOR:              return D3D11_BLEND_SRC_COLOR;
+        case EG_ONE_MINUS_SRC_COLOR:    return D3D11_BLEND_INV_SRC_COLOR;
+        case EG_DST_COLOR:              return D3D11_BLEND_DEST_COLOR;
+        case EG_ONE_MINUS_DST_COLOR:    return D3D11_BLEND_INV_DEST_COLOR;
+        case EG_SRC_ALPHA:              return D3D11_BLEND_SRC_ALPHA;
+        case EG_ONE_MINUS_SRC_ALPHA:    return D3D11_BLEND_INV_SRC_ALPHA;
+        case EG_DST_ALPHA:              return D3D11_BLEND_DEST_ALPHA;
+        case EG_ONE_MINUS_DST_ALPHA:    return D3D11_BLEND_INV_DEST_ALPHA;
+        case EG_SRC_ALPHA_SATURATE:     return D3D11_BLEND_SRC_ALPHA_SAT;
+    }
+    return D3D11_BLEND_ZERO;
+}
+
+void egBlendFunc(EG_BLEND_FACTOR src, EG_BLEND_FACTOR dst)
+{
+    if (!pBoundDevice) return;
+    SEGState *pState = pBoundDevice->states + pBoundDevice->statesStackCount;
+    D3D11_BLEND dxSrc = blendFactorToDX(src);
+    D3D11_BLEND dxDst = blendFactorToDX(dst);
+    if (pState->blend.RenderTarget->SrcBlend != dxSrc)
+    {
+        pState->blend.RenderTarget->SrcBlend = dxSrc;
+        pState->blendDirty = TRUE;
+    }
+    if (pState->blend.RenderTarget->DestBlend != dxDst)
+    {
+        pState->blend.RenderTarget->DestBlend = dxDst;
+        pState->blendDirty = TRUE;
+    }
 }
 
 void egCube(float size)

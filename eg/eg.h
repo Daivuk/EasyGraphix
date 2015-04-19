@@ -102,6 +102,21 @@ extern "C"
         EG_AMBIENT_OCCLUSION    = 14
     } EG_ENABLE_BITS;
 
+    typedef enum
+    {
+        EG_ZERO                 = 0,
+        EG_ONE                  = 1,
+        EG_SRC_COLOR            = 2,
+        EG_ONE_MINUS_SRC_COLOR  = 3,
+        EG_DST_COLOR            = 4,
+        EG_ONE_MINUS_DST_COLOR  = 5,
+        EG_SRC_ALPHA            = 6,
+        EG_ONE_MINUS_SRC_ALPHA  = 7,
+        EG_DST_ALPHA            = 8,
+        EG_ONE_MINUS_DST_ALPHA  = 9,
+        EG_SRC_ALPHA_SATURATE   = 10,
+    } EG_BLEND_FACTOR;
+
     // Device related functions
 #ifdef WIN32
     EGDevice    egCreateDevice(HWND windowHandle);
@@ -178,6 +193,7 @@ extern "C"
     void        egDisable(EG_ENABLE_BITS stateBits);
     void        egStatePush();
     void        egStatePop();
+    void        egBlendFunc(EG_BLEND_FACTOR src, EG_BLEND_FACTOR dst);
 
     void        egCube(float size);
     void        egSphere(float radius, uint32_t slices, uint32_t stacks);
