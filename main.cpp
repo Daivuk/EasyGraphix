@@ -39,19 +39,24 @@ void draw()
 
     egBindDiffuse(texture);
 
-    egSet3DViewProj(0, 0, 15, 5, 10, 5, 0, 0, 1, 90, .1f, 10000.f);
-    egBegin(EG_QUADS);
-    egTexCoord(0, 0);
-    egPosition3(0, 10, 10);
-    egTexCoord(0, 1);
-    egPosition3(0, 10, 0);
-    egTexCoord(1, 1);
-    egPosition3(10, 10, 0);
-    egTexCoord(1, 0);
-    egPosition3(10, 10, 10);
-    egEnd();
+    egSet3DViewProj(-10, -10, 10, 0, 0, 0, 0, 0, 1, 90, .1f, 10000.f);
+
+    egEnable(EG_DEPTH_TEST);
+    static float rotation = 0.f;
+    rotation += 1.f;
+    egModelScale(.5f, 2.0f, 1);
+    egModelRotate(rotation, 0, 0, 1);
+    egColor3(1, .5f, .5f);
+    egCube(5);
+    egModelTranslate(20, 0, 0);
+    egColor3(.5f, 1, .5f);
+    egCube(5);
 
     egSet2DViewProj(-1, 1);
+    egModelIdentity();
+    egDisable(EG_DEPTH_TEST);
+
+    egColor3(1, 1, 1);
     egBegin(EG_QUADS);
     egTexCoord(0, 0);
     egPosition2(0, 0);

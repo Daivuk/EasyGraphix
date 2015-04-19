@@ -67,56 +67,7 @@ float4 main(sInput input):SV_TARGET\n\
 #define DIFFUSE_MAP     0
 #define NORMAL_MAP      1
 #define MATERIAL_MAP    2
-
-// Batch stuff
-typedef struct
-{
-    float x, y, z;
-    float nx, ny, nz;
-    float u, v;
-    float r, g, b, a;
-} SEGVertex;
-SEGVertex *pVertex = NULL;
-uint32_t currentVertexCount = 0;
-BOOL bIsInBatch = FALSE;
-SEGVertex currentVertex = {0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 1, 1};
-EG_TOPOLOGY currentTopology;
-
-// Textures
-typedef struct
-{
-    ID3D11Texture2D            *pTexture;
-    ID3D11ShaderResourceView   *pResourceView;
-} SEGTexture2D;
-
-// Devices
-typedef struct
-{
-    IDXGISwapChain             *pSwapChain;
-    ID3D11Device               *pDevice;
-    ID3D11DeviceContext        *pDeviceContext;
-    ID3D11RenderTargetView     *pRenderTargetView;
-    D3D11_TEXTURE2D_DESC        backBufferDesc;
-    ID3D11VertexShader         *pVS;
-    ID3D11PixelShader          *pPS;
-    ID3D11InputLayout          *pInputLayout;
-    ID3D11Buffer               *pCBViewProj;
-    ID3D11Buffer               *pCBModel;
-    ID3D11Buffer               *pVertexBuffer;
-    ID3D11Resource             *pVertexBufferRes;
-    SEGTexture2D               *textures;
-    uint32_t                    textureCount;
-    SEGTexture2D                pDefaultTextureMaps[3];
-} SEGDevice;
-SEGDevice  *devices = NULL;
-uint32_t    deviceCount = 0;
-SEGDevice  *pBoundDevice = NULL;
-
-// Viewport
-uint32_t    viewPort[4];
-
-// Clear states
-float clearColor[4] = {0};
+#define MAX_STACK       256 // Used for states and matrices
 
 // Vector math
 void v3normalize(float* v)
@@ -139,17 +90,11 @@ float v3dot(float* v1, float* v2)
 }
 
 // Matrices
+#define at(__row__, __col__) m[__row__ * 4 + __col__]
 typedef struct
 {
     float m[16];
 } SEGMatrix;
-#define MAX_WORLD_STACK 1024
-SEGMatrix  *worldMatrices = NULL;
-uint32_t    worldMatricesStackCount = 0;
-SEGMatrix  *pBoundWorldMatrix = NULL;
-SEGMatrix   projectionMatrix;
-SEGMatrix   viewMatrix;
-SEGMatrix   viewProjMatrix;
 void setIdentityMatrix(SEGMatrix *pMatrix)
 {
     memset(pMatrix, 0, sizeof(SEGMatrix));
@@ -158,8 +103,7 @@ void setIdentityMatrix(SEGMatrix *pMatrix)
     pMatrix->m[10] = 1;
     pMatrix->m[15] = 1;
 }
-#define at(__row__, __col__) m[__row__ * 4 + __col__]
-void multMatrix(SEGMatrix *pM1, SEGMatrix *pM2, SEGMatrix *pMOut)
+void multMatrix(const SEGMatrix *pM1, const SEGMatrix *pM2, SEGMatrix *pMOut)
 {
     for (int i = 0; i < 4; i++)
     {
@@ -179,6 +123,62 @@ void swapf(float *a, float *b)
     temp = *b;
     *b = *a;
     *a = temp;
+}
+void setTranslationMatrix(SEGMatrix *pMatrix, float x, float y, float z)
+{
+    memset(pMatrix, 0, sizeof(SEGMatrix));
+    pMatrix->m[0] = 1;
+    pMatrix->m[5] = 1;
+    pMatrix->m[10] = 1;
+    pMatrix->m[15] = 1;
+    pMatrix->m[12] = x;
+    pMatrix->m[13] = y;
+    pMatrix->m[14] = z;
+}
+void setScaleMatrix(SEGMatrix *pMatrix, float x, float y, float z)
+{
+    memset(pMatrix, 0, sizeof(SEGMatrix));
+    pMatrix->m[0] = x;
+    pMatrix->m[5] = y;
+    pMatrix->m[10] = z;
+    pMatrix->m[15] = 1;
+}
+void setRotationMatrix(SEGMatrix *pMatrix, float xDeg, float yDeg, float zDeg)
+{
+    float xRads = (TO_RAD(xDeg));
+    float yRads = (TO_RAD(yDeg));
+    float zRads = (TO_RAD(zDeg));
+
+    SEGMatrix ma, mb, mc;
+    float ac = cosf(xRads);
+    float as = sinf(xRads);
+    float bc = cosf(yRads);
+    float bs = sinf(yRads);
+    float cc = cosf(zRads);
+    float cs = sinf(zRads);
+
+    setIdentityMatrix(&ma);
+    setIdentityMatrix(&mb);
+    setIdentityMatrix(&mc);
+
+    ma.at(1, 1) = ac;
+    ma.at(2, 1) = as;
+    ma.at(1, 2) = -as;
+    ma.at(2, 2) = ac;
+
+    mb.at(0, 0) = bc;
+    mb.at(2, 0) = -bs;
+    mb.at(0, 2) = bs;
+    mb.at(2, 2) = bc;
+
+    mc.at(0, 0) = cc;
+    mc.at(1, 0) = cs;
+    mc.at(0, 1) = -cs;
+    mc.at(1, 1) = cc;
+
+    SEGMatrix ret;
+    multMatrix(&ma, &mb, &ret);
+    multMatrix(&ret, &mc, pMatrix);
 }
 void transposeMatrix(SEGMatrix *pMatrix)
 {
@@ -252,9 +252,78 @@ void setProjectionMatrix(SEGMatrix *pMatrix, float fov, float aspect, float near
     transposeMatrix(pMatrix);
 }
 
+// Batch stuff
+typedef struct
+{
+    float x, y, z;
+    float nx, ny, nz;
+    float u, v;
+    float r, g, b, a;
+} SEGVertex;
+SEGVertex *pVertex = NULL;
+uint32_t currentVertexCount = 0;
+BOOL bIsInBatch = FALSE;
+SEGVertex currentVertex = {0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 1, 1};
+EG_TOPOLOGY currentTopology;
+
+// Textures
+typedef struct
+{
+    ID3D11Texture2D            *pTexture;
+    ID3D11ShaderResourceView   *pResourceView;
+} SEGTexture2D;
+
+// States
+typedef struct
+{
+    D3D11_DEPTH_STENCIL_DESC    depth;
+    BOOL                        depthDirty;
+    D3D11_RASTERIZER_DESC       rasterizer;
+    BOOL                        rasterizerDirty;
+    D3D11_BLEND_DESC            blend;
+    BOOL                        blendDirty;
+    D3D11_SAMPLER_DESC          sampler;
+    BOOL                        samplerDirty;
+} SEGState;
+
+// Devices
+typedef struct
+{
+    IDXGISwapChain             *pSwapChain;
+    ID3D11Device               *pDevice;
+    ID3D11DeviceContext        *pDeviceContext;
+    ID3D11RenderTargetView     *pRenderTargetView;
+    D3D11_TEXTURE2D_DESC        backBufferDesc;
+    ID3D11VertexShader         *pVS;
+    ID3D11PixelShader          *pPS;
+    ID3D11InputLayout          *pInputLayout;
+    ID3D11Buffer               *pCBViewProj;
+    ID3D11Buffer               *pCBModel;
+    ID3D11Buffer               *pVertexBuffer;
+    ID3D11Resource             *pVertexBufferRes;
+    SEGTexture2D               *textures;
+    uint32_t                    textureCount;
+    SEGTexture2D                pDefaultTextureMaps[3];
+    uint32_t                    viewPort[4];
+    SEGMatrix                   worldMatrices[MAX_STACK];
+    uint32_t                    worldMatricesStackCount;
+    SEGMatrix                  *pBoundWorldMatrix;
+    SEGMatrix                   projectionMatrix;
+    SEGMatrix                   viewMatrix;
+    SEGMatrix                   viewProjMatrix;
+    SEGState                    states[MAX_STACK];
+    uint32_t                    statesStackCount;
+} SEGDevice;
+SEGDevice  *devices = NULL;
+uint32_t    deviceCount = 0;
+SEGDevice  *pBoundDevice = NULL;
+
+// Clear states
+float clearColor[4] = {0};
+
 void resetStates()
 {
-    worldMatricesStackCount = 0;
+    pBoundDevice->worldMatricesStackCount = 0;
 
     egSet2DViewProj(-999, 999);
     egViewPort(0, 0, (uint32_t)pBoundDevice->backBufferDesc.Width, (uint32_t)pBoundDevice->backBufferDesc.Height);
@@ -432,10 +501,7 @@ EGDevice egCreateDevice(HWND windowHandle)
     ID3D11Texture2D        *pBackBuffer;
     ID3D11Resource         *pBackBufferRes;
 
-    if (!worldMatrices)
-    {
-        worldMatrices = (SEGMatrix*)malloc(sizeof(SEGMatrix) * MAX_WORLD_STACK);
-    }
+    //device.worldMatrices = (SEGMatrix*)malloc(sizeof(SEGMatrix) * MAX_STACK);
 
     // Define our swap chain
     memset(&swapChainDesc, 0, sizeof(swapChainDesc));
@@ -538,6 +604,10 @@ EGDevice egCreateDevice(HWND windowHandle)
     device.pDeviceContext->lpVtbl->RSSetState(device.pDeviceContext, pSr2D);
     device.pDeviceContext->lpVtbl->OMSetBlendState(device.pDeviceContext, pBs2D, NULL, 0xffffffff);
     device.pDeviceContext->lpVtbl->PSSetSamplers(device.pDeviceContext, 0, 1, &pSs2D);
+    pDs2D->lpVtbl->Release(pDs2D);
+    pSr2D->lpVtbl->Release(pSr2D);
+    pBs2D->lpVtbl->Release(pBs2D);
+    pSs2D->lpVtbl->Release(pSs2D);
     // ------------- END TEMP ------------
 
     // Create our geometry batch vertex buffer that will be used to batch everything
@@ -566,8 +636,37 @@ EGDevice egCreateDevice(HWND windowHandle)
     }
 
     ++deviceCount;
-    if (deviceCount == 1) resetStates();
+    resetStates();
     return deviceCount;
+}
+
+void updateState()
+{
+    SEGState *pState = pBoundDevice->states + pBoundDevice->statesStackCount;
+    if (pState->depthDirty)
+    {
+        ID3D11DepthStencilState *pDs2D;
+        pBoundDevice->pDevice->lpVtbl->CreateDepthStencilState(pBoundDevice->pDevice, &pState->depth, &pDs2D);
+        pBoundDevice->pDeviceContext->lpVtbl->OMSetDepthStencilState(pBoundDevice->pDeviceContext, pDs2D, 1);
+        pDs2D->lpVtbl->Release(pDs2D);
+        pState->depthDirty = FALSE;
+    }
+    if (pState->rasterizerDirty)
+    {
+        ID3D11RasterizerState *pSr2D;
+        pBoundDevice->pDevice->lpVtbl->CreateRasterizerState(pBoundDevice->pDevice, &pState->rasterizer, &pSr2D);
+        pBoundDevice->pDeviceContext->lpVtbl->RSSetState(pBoundDevice->pDeviceContext, pSr2D);
+        pSr2D->lpVtbl->Release(pSr2D);
+        pState->rasterizerDirty = FALSE;
+    }
+    if (pState->blendDirty)
+    {
+        pState->blendDirty = FALSE;
+    }
+    if (pState->samplerDirty)
+    {
+        pState->samplerDirty = FALSE;
+    }
 }
 
 void egDestroyDevice(EGDevice *pDeviceID)
@@ -627,7 +726,7 @@ void updateViewProjCB()
     ID3D11Resource *pRes = NULL;
     pBoundDevice->pCBViewProj->lpVtbl->QueryInterface(pBoundDevice->pCBViewProj, &IID_ID3D11Resource, &pRes);
     pBoundDevice->pDeviceContext->lpVtbl->Map(pBoundDevice->pDeviceContext, pRes, 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
-    memcpy(map.pData, viewProjMatrix.m, 64);
+    memcpy(map.pData, pBoundDevice->viewProjMatrix.m, 64);
     pBoundDevice->pDeviceContext->lpVtbl->Unmap(pBoundDevice->pDeviceContext, pRes, 0);
     pRes->lpVtbl->Release(pRes);
     pBoundDevice->pDeviceContext->lpVtbl->VSSetConstantBuffers(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->pCBViewProj);
@@ -639,31 +738,31 @@ void egSet2DViewProj(float nearClip, float farClip)
     if (!pBoundDevice) return;
 
     // viewProj2D matrix
-    projectionMatrix.m[0] = 2.f / (float)viewPort[2];
-    projectionMatrix.m[1] = 0.f;
-    projectionMatrix.m[2] = 0.f;
-    projectionMatrix.m[3] = -1.f;
+    pBoundDevice->projectionMatrix.m[0] = 2.f / (float)pBoundDevice->viewPort[2];
+    pBoundDevice->projectionMatrix.m[1] = 0.f;
+    pBoundDevice->projectionMatrix.m[2] = 0.f;
+    pBoundDevice->projectionMatrix.m[3] = -1.f;
 
-    projectionMatrix.m[4] = 0.f;
-    projectionMatrix.m[5] = -2.f / (float)viewPort[3];
-    projectionMatrix.m[6] = 0.f;
-    projectionMatrix.m[7] = 1.f;
+    pBoundDevice->projectionMatrix.m[4] = 0.f;
+    pBoundDevice->projectionMatrix.m[5] = -2.f / (float)pBoundDevice->viewPort[3];
+    pBoundDevice->projectionMatrix.m[6] = 0.f;
+    pBoundDevice->projectionMatrix.m[7] = 1.f;
 
-    projectionMatrix.m[8] = 0.f;
-    projectionMatrix.m[9] = 0.f;
-    projectionMatrix.m[10] = -2.f / (farClip - nearClip);
-    projectionMatrix.m[11] = -(farClip + nearClip) / (farClip - nearClip);
+    pBoundDevice->projectionMatrix.m[8] = 0.f;
+    pBoundDevice->projectionMatrix.m[9] = 0.f;
+    pBoundDevice->projectionMatrix.m[10] = -2.f / (farClip - nearClip);
+    pBoundDevice->projectionMatrix.m[11] = -(farClip + nearClip) / (farClip - nearClip);
     
-    projectionMatrix.m[12] = 0.f;
-    projectionMatrix.m[13] = 0.f;
-    projectionMatrix.m[14] = 0.f;
-    projectionMatrix.m[15] = 1.f;
+    pBoundDevice->projectionMatrix.m[12] = 0.f;
+    pBoundDevice->projectionMatrix.m[13] = 0.f;
+    pBoundDevice->projectionMatrix.m[14] = 0.f;
+    pBoundDevice->projectionMatrix.m[15] = 1.f;
 
     // Identity view
-    setIdentityMatrix(&viewMatrix);
+    setIdentityMatrix(&pBoundDevice->viewMatrix);
 
     // Multiply them
-    multMatrix(&viewMatrix, &projectionMatrix, &viewProjMatrix);
+    multMatrix(&pBoundDevice->viewMatrix, &pBoundDevice->projectionMatrix, &pBoundDevice->viewProjMatrix);
 
     updateViewProjCB();
 }
@@ -675,13 +774,13 @@ void egSet3DViewProj(float eyeX, float eyeY, float eyeZ, float centerX, float ce
 
     // Projection
     float aspect = (float)pBoundDevice->backBufferDesc.Width / (float)pBoundDevice->backBufferDesc.Height;
-    setProjectionMatrix(&projectionMatrix, TO_RAD(fov), aspect, nearClip, farClip);
+    setProjectionMatrix(&pBoundDevice->projectionMatrix, TO_RAD(fov), aspect, nearClip, farClip);
 
     // View
-    setLookAtMatrix(&viewMatrix, eyeX, eyeY, eyeZ, centerX, centerY, centerZ, upX, upY, upZ);
+    setLookAtMatrix(&pBoundDevice->viewMatrix, eyeX, eyeY, eyeZ, centerX, centerY, centerZ, upX, upY, upZ);
 
     // Multiply them
-    multMatrix(&viewMatrix, &projectionMatrix, &viewProjMatrix);
+    multMatrix(&pBoundDevice->viewMatrix, &pBoundDevice->projectionMatrix, &pBoundDevice->viewProjMatrix);
 
     updateViewProjCB();
 }
@@ -691,12 +790,12 @@ void egViewPort(uint32_t x, uint32_t y, uint32_t width, uint32_t height)
     if (bIsInBatch) return;
     if (!pBoundDevice) return;
 
-    viewPort[0] = x;
-    viewPort[1] = y;
-    viewPort[2] = width;
-    viewPort[3] = height;
+    pBoundDevice->viewPort[0] = x;
+    pBoundDevice->viewPort[1] = y;
+    pBoundDevice->viewPort[2] = width;
+    pBoundDevice->viewPort[3] = height;
 
-    D3D11_VIEWPORT d3dViewport = {(FLOAT)viewPort[0], (FLOAT)viewPort[1], (FLOAT)viewPort[2], (FLOAT)viewPort[3], D3D11_MIN_DEPTH, D3D11_MAX_DEPTH};
+    D3D11_VIEWPORT d3dViewport = {(FLOAT)pBoundDevice->viewPort[0], (FLOAT)pBoundDevice->viewPort[1], (FLOAT)pBoundDevice->viewPort[2], (FLOAT)pBoundDevice->viewPort[3], D3D11_MIN_DEPTH, D3D11_MAX_DEPTH};
     pBoundDevice->pDeviceContext->lpVtbl->RSSetViewports(pBoundDevice->pDeviceContext, 1, &d3dViewport);
 }
 
@@ -707,13 +806,16 @@ void egScissor(uint32_t x, uint32_t y, uint32_t width, uint32_t height)
 
 void updateModelCB()
 {
-    SEGMatrix *pModel = worldMatrices + worldMatricesStackCount;
+    SEGMatrix *pModel = pBoundDevice->worldMatrices + pBoundDevice->worldMatricesStackCount;
+    SEGMatrix model;
+    memcpy(&model, pModel, sizeof(SEGMatrix));
+    transposeMatrix(&model);
 
     D3D11_MAPPED_SUBRESOURCE map;
     ID3D11Resource *pRes = NULL;
     pBoundDevice->pCBModel->lpVtbl->QueryInterface(pBoundDevice->pCBModel, &IID_ID3D11Resource, &pRes);
     pBoundDevice->pDeviceContext->lpVtbl->Map(pBoundDevice->pDeviceContext, pRes, 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
-    memcpy(map.pData, pModel->m, 64);
+    memcpy(map.pData, model.m, 64);
     pBoundDevice->pDeviceContext->lpVtbl->Unmap(pBoundDevice->pDeviceContext, pRes, 0);
     pRes->lpVtbl->Release(pRes);
     pBoundDevice->pDeviceContext->lpVtbl->VSSetConstantBuffers(pBoundDevice->pDeviceContext, 1, 1, &pBoundDevice->pCBModel);
@@ -722,7 +824,7 @@ void updateModelCB()
 void egModelIdentity()
 {
     if (bIsInBatch) return;
-    SEGMatrix *pModel = worldMatrices + worldMatricesStackCount;
+    SEGMatrix *pModel = pBoundDevice->worldMatrices + pBoundDevice->worldMatricesStackCount;
     setIdentityMatrix(pModel);
     updateModelCB();
 }
@@ -730,53 +832,82 @@ void egModelIdentity()
 void egModelTranslate(float x, float y, float z)
 {
     if (bIsInBatch) return;
+    SEGMatrix *pModel = pBoundDevice->worldMatrices + pBoundDevice->worldMatricesStackCount;
+    SEGMatrix translationMatrix;
+    setTranslationMatrix(&translationMatrix, x, y, z);
+    SEGMatrix matrix;
+    memcpy(&matrix, pModel, sizeof(SEGMatrix));
+    multMatrix(&translationMatrix, &matrix, pModel);
+    updateModelCB();
 }
 
 void egModelTranslatev(const float *pAxis)
 {
     if (bIsInBatch) return;
+    egModelTranslate(pAxis[0], pAxis[1], pAxis[2]);
 }
 
 void egModelMult(const float *pMatrix)
 {
     if (bIsInBatch) return;
+    SEGMatrix *pModel = pBoundDevice->worldMatrices + pBoundDevice->worldMatricesStackCount;
+    SEGMatrix matrix;
+    memcpy(&matrix, pModel, sizeof(SEGMatrix));
+    multMatrix((const SEGMatrix*)pMatrix, &matrix, pModel);
+    updateModelCB();
 }
 
 void egModelRotate(float angle, float x, float y, float z)
 {
     if (bIsInBatch) return;
+    SEGMatrix *pModel = pBoundDevice->worldMatrices + pBoundDevice->worldMatricesStackCount;
+    SEGMatrix rotationMatrix;
+    setRotationMatrix(&rotationMatrix, angle * x, angle * y, angle * z);
+    SEGMatrix matrix;
+    memcpy(&matrix, pModel, sizeof(SEGMatrix));
+    multMatrix(&rotationMatrix, &matrix, pModel);
+    updateModelCB();
 }
 
 void egModelRotatev(float angle, const float *pAxis)
 {
     if (bIsInBatch) return;
+    egModelRotate(angle, pAxis[0], pAxis[1], pAxis[2]);
 }
 
 void egModelScale(float x, float y, float z)
 {
     if (bIsInBatch) return;
+    SEGMatrix *pModel = pBoundDevice->worldMatrices + pBoundDevice->worldMatricesStackCount;
+    SEGMatrix scaleMatrix;
+    setScaleMatrix(&scaleMatrix, x, y, z);
+    SEGMatrix matrix;
+    memcpy(&matrix, pModel, sizeof(SEGMatrix));
+    multMatrix(&scaleMatrix, &matrix, pModel);
+    updateModelCB();
 }
 
 void egModelScalev(const float *pAxis)
 {
     if (bIsInBatch) return;
+    egModelScale(pAxis[0], pAxis[1], pAxis[2]);
 }
 
 void egModelPush()
 {
     if (bIsInBatch) return;
-    if (worldMatricesStackCount == MAX_WORLD_STACK - 1) return;
-    SEGMatrix *pPrevious = worldMatrices + worldMatricesStackCount;
-    ++worldMatricesStackCount;
-    SEGMatrix *pNew = worldMatrices + worldMatricesStackCount;
+    if (pBoundDevice->worldMatricesStackCount == MAX_STACK - 1) return;
+    SEGMatrix *pPrevious = pBoundDevice->worldMatrices + pBoundDevice->worldMatricesStackCount;
+    ++pBoundDevice->worldMatricesStackCount;
+    SEGMatrix *pNew = pBoundDevice->worldMatrices + pBoundDevice->worldMatricesStackCount;
     memcpy(pNew, pPrevious, sizeof(SEGMatrix));
 }
 
 void egModelPop()
 {
     if (bIsInBatch) return;
-    if (!worldMatricesStackCount) return;
-    --worldMatricesStackCount;
+    if (!pBoundDevice->worldMatricesStackCount) return;
+    --pBoundDevice->worldMatricesStackCount;
     updateModelCB();
 }
 
@@ -1101,22 +1232,111 @@ void egBindMaterial(EGTexture texture)
 
 void egEnable(EG_ENABLE_BITS stateBits)
 {
+    switch (stateBits)
+    {
+        case EG_DEPTH_TEST:
+        {
+            break;
+        }
+    }
 }
 
-void egDisable(EG_ENABLE_BITS sateBits)
+void egDisable(EG_ENABLE_BITS stateBits)
 {
+    switch (stateBits)
+    {
+        case EG_DEPTH_TEST:
+        {
+            break;
+        }
+    }
 }
 
 void egStatePush()
 {
+    if (bIsInBatch) return;
+    if (pBoundDevice->statesStackCount == MAX_STACK - 1) return;
+    SEGState *pPrevious = pBoundDevice->states + pBoundDevice->statesStackCount;
+    ++pBoundDevice->statesStackCount;
+    SEGState *pNew = pBoundDevice->states + pBoundDevice->statesStackCount;
+    memcpy(pNew, pPrevious, sizeof(SEGState));
 }
 
 void egStatePop()
 {
+    if (bIsInBatch) return;
+    if (!pBoundDevice->statesStackCount) return;
+    --pBoundDevice->statesStackCount;
+    updateState();
 }
 
 void egCube(float size)
 {
+    float hSize = size * .5f;
+
+    egBegin(EG_QUADS);
+
+    egNormal(0, -1, 0);
+    egTexCoord(0, 0);
+    egPosition3(-hSize, -hSize, hSize);
+    egTexCoord(0, 1);
+    egPosition3(-hSize, -hSize, -hSize);
+    egTexCoord(1, 1);
+    egPosition3(hSize, -hSize, -hSize);
+    egTexCoord(1, 0);
+    egPosition3(hSize, -hSize, hSize);
+
+    egNormal(1, 0, 0);
+    egTexCoord(0, 0);
+    egPosition3(hSize, -hSize, hSize);
+    egTexCoord(0, 1);
+    egPosition3(hSize, -hSize, -hSize);
+    egTexCoord(1, 1);
+    egPosition3(hSize, hSize, -hSize);
+    egTexCoord(1, 0);
+    egPosition3(hSize, hSize, hSize);
+
+    egNormal(0, 1, 0);
+    egTexCoord(0, 0);
+    egPosition3(hSize, hSize, hSize);
+    egTexCoord(0, 1);
+    egPosition3(hSize, hSize, -hSize);
+    egTexCoord(1, 1);
+    egPosition3(-hSize, hSize, -hSize);
+    egTexCoord(1, 0);
+    egPosition3(-hSize, hSize, hSize);
+
+    egNormal(-1, 0, 0);
+    egTexCoord(0, 0);
+    egPosition3(-hSize, hSize, hSize);
+    egTexCoord(0, 1);
+    egPosition3(-hSize, hSize, -hSize);
+    egTexCoord(1, 1);
+    egPosition3(-hSize, -hSize, -hSize);
+    egTexCoord(1, 0);
+    egPosition3(-hSize, -hSize, hSize);
+
+    egNormal(0, 0, 1);
+    egTexCoord(0, 0);
+    egPosition3(-hSize, hSize, hSize);
+    egTexCoord(0, 1);
+    egPosition3(-hSize, -hSize, hSize);
+    egTexCoord(1, 1);
+    egPosition3(hSize, -hSize, hSize);
+    egTexCoord(1, 0);
+    egPosition3(hSize, hSize, hSize);
+
+    egNormal(0, 0, -1);
+    egTexCoord(0, 0);
+    egPosition3(-hSize, -hSize, -hSize);
+    egTexCoord(0, 1);
+    egPosition3(-hSize, hSize, -hSize);
+    egTexCoord(1, 1);
+    egPosition3(hSize, hSize, -hSize);
+    egTexCoord(1, 0);
+    egPosition3(hSize, -hSize, -hSize);
+
+    egEnd();
 }
 
 void egSphere(float radius, uint32_t slices, uint32_t stacks)

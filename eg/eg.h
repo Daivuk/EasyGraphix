@@ -175,7 +175,7 @@ extern "C"
     void        egBindMaterial(EGTexture texture);
 
     void        egEnable(EG_ENABLE_BITS stateBits);
-    void        egDisable(EG_ENABLE_BITS sateBits);
+    void        egDisable(EG_ENABLE_BITS stateBits);
     void        egStatePush();
     void        egStatePop();
 
