@@ -71,6 +71,19 @@ void draw()
     egColor3(.5f, .5f, 1);
     egCube(5);
 
+    egBegin(EG_AMBIENTS);
+    egColor3(.12f, .1f, .15f);
+    egEnd();
+
+    egBegin(EG_OMNIS);
+    egColor3(1, 1, 1);
+    egRadius(20);
+    egFalloffExponent(1);
+    egMultiply(1);
+    egPosition3(-5, -5, 3);
+    egEnd();
+
+    egPostProcess();
     egSwap();
 }
 

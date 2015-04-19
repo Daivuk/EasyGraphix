@@ -124,6 +124,7 @@ extern "C"
     void        egDestroyDevice(EGDevice *pDevice);
     void        egBindDevice(EGDevice device);
     void        egSwap();
+    void        egPostProcess();
 
     // Clear
     void        egClearColor(float r, float g, float b, float a);
@@ -136,7 +137,7 @@ extern "C"
     void        egSet2DViewProj(float nearClip, float farClip);
     void        egSet3DViewProj(float eyeX, float eyeY, float eyeZ, float centerX, float centerY, float centerZ, float upX, float upY, float upZ, float fov, float nearClip, float farClip);
     void        egSetIsometricViewProj();
-    void        egSetViewProj(const float *pView, const float *pModel);
+    void        egSetViewProj(const float *pView, const float *pProj);
 
     void        egViewPort(uint32_t x, uint32_t y, uint32_t width, uint32_t height);
     void        egScissor(uint32_t x, uint32_t y, uint32_t width, uint32_t height);
@@ -174,7 +175,7 @@ extern "C"
     void        egRadius(float radius);
     void        egRadius2(float innerRadius, float outterRadius);
     void        egRadius2v(const float *pRadius);
-    void        egFalloutExponent(float exponent);
+    void        egFalloffExponent(float exponent);
     void        egMultiply(float multiply);
     void        egSpecular(float intensity, float shininess);
     void        egSelfIllum(float intensity);

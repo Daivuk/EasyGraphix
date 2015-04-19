@@ -35,6 +35,7 @@ struct sOutput\n\
     float3 normal:NORMAL;\n\
     float2 texCoord:TEXCOORD;\n\
     float4 color:COLOR;\n\
+    float2 depth:TEXCOORD1;\n\
 };\n\
 sOutput main(sInput input)\n\
 {\n\
@@ -44,6 +45,7 @@ sOutput main(sInput input)\n\
     output.normal = mul(float4(input.normal, 0), model).xyz;\n\
     output.texCoord = input.texCoord;\n\
     output.color = input.color;\n\
+    output.depth.xy = output.position.zw;\n\
     return output;\n\
 }";
 
@@ -59,11 +61,82 @@ struct sInput\n\
     float3 normal:NORMAL;\n\
     float2 texCoord:TEXCOORD;\n\
     float4 color:COLOR;\n\
+    float2 depth:TEXCOORD1;\n\
+};\n\
+struct sOutput\n\
+{\n\
+    float4 diffuse:SV_Target0;\n\
+    float4 depth:SV_Target1;\n\
+    float4 normal:SV_Target2;\n\
+    float4 material:SV_Target3;\n\
+};\n\
+sOutput main(sInput input)\n\
+{\n\
+    float4 xdiffuse = xDiffuse.Sample(sSampler, input.texCoord);\n\
+    float4 xnormal = xNormal.Sample(sSampler, input.texCoord);\n\
+    float4 xmaterial = xMaterial.Sample(sSampler, input.texCoord);\n\
+    sOutput output;\n\
+    output.diffuse = xdiffuse * input.color;\n\
+    output.depth = input.depth.x / input.depth.y;\n\
+    output.normal.xyz = input.normal * .5 + .5;\n\
+    output.normal.a = 0;\n\
+    output.material = xmaterial;\n\
+    return output;\n\
+}";
+
+const char *g_vsPassThrough =
+"\
+struct sInput\n\
+{\n\
+    float2 position:POSITION;\n\
+    float2 texCoord:TEXCOORD;\n\
+    float4 color:COLOR;\n\
+};\n\
+struct sOutput\n\
+{\n\
+    float4 position:SV_POSITION;\n\
+    float2 texCoord:TEXCOORD;\n\
+    float4 color:COLOR;\n\
+};\n\
+sOutput main(sInput input)\n\
+{\n\
+    sOutput output;\n\
+    output.position = float4(input.position, 0, 1);\n\
+    output.texCoord = input.texCoord;\n\
+    output.color = input.color;\n\
+    return output;\n\
+}";
+
+const char *g_psPassThrough =
+"\
+Texture2D xDiffuse:register(t0);\n\
+SamplerState sSampler:register(s0);\n\
+struct sInput\n\
+{\n\
+    float4 position:SV_POSITION;\n\
+    float2 texCoord:TEXCOORD;\n\
+    float4 color:COLOR;\n\
 };\n\
 float4 main(sInput input):SV_TARGET\n\
 {\n\
-    float4 diffuse = xDiffuse.Sample(sSampler, input.texCoord);\n\
-    return diffuse * input.color;\n\
+    float4 xdiffuse = xDiffuse.Sample(sSampler, input.texCoord);\n\
+    return xdiffuse * input.color;\n\
+}";
+
+const char *g_psAmbient =
+"\
+Texture2D xDiffuse:register(t0);\n\
+SamplerState sSampler:register(s0);\n\
+struct sInput\n\
+{\n\
+    float4 position:SV_POSITION;\n\
+    float2 texCoord:TEXCOORD;\n\
+    float4 color:COLOR;\n\
+};\n\
+float4 main(sInput input):SV_TARGET\n\
+{\n\
+    float4 xdiffuse = xDiffuse.Sample(sSampler, input.texCoord);\n\
+    return xdiffuse * input.color;\n\
 }";
 
 #define MAX_VERTEX_COUNT (300 * 2 * 3)
@@ -75,6 +148,15 @@ float4 main(sInput input):SV_TARGET\n\
 #define G_DEPTH         1
 #define G_NORMAL        2
 #define G_MATERIAL      3
+
+typedef enum
+{
+    EG_GEOMETRY_PASS        = 0,
+    EG_AMBIENT_PASS         = 1,
+    EG_OMNI_PASS            = 2,
+    EG_SPOT_PASS            = 3,
+    EG_POST_PROCESS_PASS    = 4
+} EG_PASS;
 
 // Vector math
 void v3normalize(float* v)
@@ -312,6 +394,10 @@ typedef struct
     ID3D11VertexShader         *pVS;
     ID3D11PixelShader          *pPS;
     ID3D11InputLayout          *pInputLayout;
+    ID3D11VertexShader         *pVSPassThrough;
+    ID3D11PixelShader          *pPSPassThrough;
+    ID3D11InputLayout          *pInputLayoutPassThrough;
+    ID3D11PixelShader          *pPSAmbient;
     ID3D11Buffer               *pCBViewProj;
     ID3D11Buffer               *pCBModel;
     ID3D11Buffer               *pVertexBuffer;
@@ -329,7 +415,9 @@ typedef struct
     SEGState                    states[MAX_STACK];
     uint32_t                    statesStackCount;
     float                       clearColor[4];
-    SEGRenderTarget2D           gBuffer[3];
+    SEGRenderTarget2D           gBuffer[4];
+    SEGRenderTarget2D           accumulationBuffer;
+    EG_PASS                     pass;
 } SEGDevice;
 SEGDevice  *devices = NULL;
 uint32_t    deviceCount = 0;
@@ -387,7 +475,14 @@ void resetStates()
     pBoundDevice->pDeviceContext->lpVtbl->IASetInputLayout(pBoundDevice->pDeviceContext, pBoundDevice->pInputLayout);
     pBoundDevice->pDeviceContext->lpVtbl->VSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pVS, NULL, 0);
     pBoundDevice->pDeviceContext->lpVtbl->PSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pPS, NULL, 0);
-    pBoundDevice->pDeviceContext->lpVtbl->OMSetRenderTargets(pBoundDevice->pDeviceContext, 1, &pBoundDevice->pRenderTargetView, pBoundDevice->pDepthStencilView);
+
+    ID3D11RenderTargetView *gBuffer[4] = {
+        pBoundDevice->gBuffer[G_DIFFUSE].pRenderTargetView,
+        pBoundDevice->gBuffer[G_DEPTH].pRenderTargetView,
+        pBoundDevice->gBuffer[G_NORMAL].pRenderTargetView,
+        pBoundDevice->gBuffer[G_MATERIAL].pRenderTargetView,
+    };
+    pBoundDevice->pDeviceContext->lpVtbl->OMSetRenderTargets(pBoundDevice->pDeviceContext, 4, gBuffer, pBoundDevice->pDepthStencilView);
 
     pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->pDefaultTextureMaps[DIFFUSE_MAP].pResourceView);
     pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 1, 1, &pBoundDevice->pDefaultTextureMaps[NORMAL_MAP].pResourceView);
@@ -746,6 +841,9 @@ EGDevice egCreateDevice(HWND windowHandle)
     // Compile shaders
     ID3DBlob *pVSB = compileShader(g_vs, "vs_5_0");
     ID3DBlob *pPSB = compileShader(g_ps, "ps_5_0");
+    ID3DBlob *pVSBPassThrough = compileShader(g_vsPassThrough, "vs_5_0");
+    ID3DBlob *pPSBPassThrough = compileShader(g_psPassThrough, "ps_5_0");
+    ID3DBlob *pPSBAmbient = compileShader(g_psAmbient, "ps_5_0");
     result = pBoundDevice->pDevice->lpVtbl->CreateVertexShader(pBoundDevice->pDevice, pVSB->lpVtbl->GetBufferPointer(pVSB), pVSB->lpVtbl->GetBufferSize(pVSB), NULL, &pBoundDevice->pVS);
     if (result != S_OK)
     {
@@ -760,20 +858,57 @@ EGDevice egCreateDevice(HWND windowHandle)
         egDestroyDevice(&ret);
         return 0;
     }
-
-    // Input layout
-    D3D11_INPUT_ELEMENT_DESC layout[4] = {
-        {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
-        {"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0},
-        {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0},
-        {"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0}
-    };
-    result = pBoundDevice->pDevice->lpVtbl->CreateInputLayout(pBoundDevice->pDevice, layout, 4, pVSB->lpVtbl->GetBufferPointer(pVSB), pVSB->lpVtbl->GetBufferSize(pVSB), &pBoundDevice->pInputLayout);
+    result = pBoundDevice->pDevice->lpVtbl->CreateVertexShader(pBoundDevice->pDevice, pVSBPassThrough->lpVtbl->GetBufferPointer(pVSBPassThrough), pVSBPassThrough->lpVtbl->GetBufferSize(pVSBPassThrough), NULL, &pBoundDevice->pVSPassThrough);
     if (result != S_OK)
     {
-        sprintf_s(lastError, 256, "Failed CreateInputLayout");
+        sprintf_s(lastError, 256, "Failed CreateVertexShader PassThrough");
         egDestroyDevice(&ret);
         return 0;
+    }
+    result = pBoundDevice->pDevice->lpVtbl->CreatePixelShader(pBoundDevice->pDevice, pPSBPassThrough->lpVtbl->GetBufferPointer(pPSBPassThrough), pPSBPassThrough->lpVtbl->GetBufferSize(pPSBPassThrough), NULL, &pBoundDevice->pPSPassThrough);
+    if (result != S_OK)
+    {
+        sprintf_s(lastError, 256, "Failed CreatePixelShader PassThrough");
+        egDestroyDevice(&ret);
+        return 0;
+    }
+    result = pBoundDevice->pDevice->lpVtbl->CreatePixelShader(pBoundDevice->pDevice, pPSBAmbient->lpVtbl->GetBufferPointer(pPSBAmbient), pPSBAmbient->lpVtbl->GetBufferSize(pPSBAmbient), NULL, &pBoundDevice->pPSAmbient);
+    if (result != S_OK)
+    {
+        sprintf_s(lastError, 256, "Failed CreatePixelShader Ambient");
+        egDestroyDevice(&ret);
+        return 0;
+    }
+
+    // Input layout
+    {
+        D3D11_INPUT_ELEMENT_DESC layout[4] = {
+            {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
+            {"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0},
+            {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D11_INPUT_PER_VERTEX_DATA, 0},
+            {"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 32, D3D11_INPUT_PER_VERTEX_DATA, 0}
+        };
+        result = pBoundDevice->pDevice->lpVtbl->CreateInputLayout(pBoundDevice->pDevice, layout, 4, pVSB->lpVtbl->GetBufferPointer(pVSB), pVSB->lpVtbl->GetBufferSize(pVSB), &pBoundDevice->pInputLayout);
+        if (result != S_OK)
+        {
+            sprintf_s(lastError, 256, "Failed CreateInputLayout");
+            egDestroyDevice(&ret);
+            return 0;
+        }
+    }
+    {
+        D3D11_INPUT_ELEMENT_DESC layout[3] = {
+            {"POSITION", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
+            {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D11_INPUT_PER_VERTEX_DATA, 0},
+            {"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 32, D3D11_INPUT_PER_VERTEX_DATA, 0}
+        };
+        result = pBoundDevice->pDevice->lpVtbl->CreateInputLayout(pBoundDevice->pDevice, layout, 3, pVSBPassThrough->lpVtbl->GetBufferPointer(pVSBPassThrough), pVSBPassThrough->lpVtbl->GetBufferSize(pVSBPassThrough), &pBoundDevice->pInputLayoutPassThrough);
+        if (result != S_OK)
+        {
+            sprintf_s(lastError, 256, "Failed CreateInputLayout PassThrough");
+            egDestroyDevice(&ret);
+            return 0;
+        }
     }
 
     // Create uniforms
@@ -873,6 +1008,16 @@ EGDevice egCreateDevice(HWND windowHandle)
     result = createRenderTarget(pBoundDevice->gBuffer + G_MATERIAL,
                        pBoundDevice->backBufferDesc.Width, pBoundDevice->backBufferDesc.Height,
                        DXGI_FORMAT_R8G8B8A8_UNORM);
+    if (result != S_OK)
+    {
+        egDestroyDevice(&ret);
+        return 0;
+    }
+
+    // Accumulation buffer. This is an HDR texture
+    result = createRenderTarget(&pBoundDevice->accumulationBuffer,
+                       pBoundDevice->backBufferDesc.Width, pBoundDevice->backBufferDesc.Height,
+                       DXGI_FORMAT_R16G16B16A16_FLOAT);
     if (result != S_OK)
     {
         egDestroyDevice(&ret);
@@ -981,6 +1126,13 @@ void egDestroyDevice(EGDevice *pDeviceID)
         }
     }
 
+    if (pBoundDevice->accumulationBuffer.pRenderTargetView)
+        pBoundDevice->accumulationBuffer.pRenderTargetView->lpVtbl->Release(pBoundDevice->accumulationBuffer.pRenderTargetView);
+    if (pBoundDevice->accumulationBuffer.texture.pResourceView)
+        pBoundDevice->accumulationBuffer.texture.pResourceView->lpVtbl->Release(pBoundDevice->accumulationBuffer.texture.pResourceView);
+    if (pBoundDevice->accumulationBuffer.texture.pTexture)
+        pBoundDevice->accumulationBuffer.texture.pTexture->lpVtbl->Release(pBoundDevice->accumulationBuffer.texture.pTexture);
+
     if (pDevice->pVertexBufferRes) pDevice->pVertexBufferRes->lpVtbl->Release(pDevice->pVertexBufferRes);
     if (pDevice->pVertexBuffer) pDevice->pVertexBuffer->lpVtbl->Release(pDevice->pVertexBuffer);
 
@@ -990,6 +1142,10 @@ void egDestroyDevice(EGDevice *pDeviceID)
     if (pDevice->pInputLayout) pDevice->pInputLayout->lpVtbl->Release(pDevice->pInputLayout);
     if (pDevice->pPS) pDevice->pPS->lpVtbl->Release(pDevice->pPS);
     if (pDevice->pVS) pDevice->pVS->lpVtbl->Release(pDevice->pVS);
+    if (pDevice->pInputLayoutPassThrough) pDevice->pInputLayoutPassThrough->lpVtbl->Release(pDevice->pInputLayoutPassThrough);
+    if (pDevice->pPSPassThrough) pDevice->pPSPassThrough->lpVtbl->Release(pDevice->pPSPassThrough);
+    if (pDevice->pVSPassThrough) pDevice->pVSPassThrough->lpVtbl->Release(pDevice->pVSPassThrough);
+    if (pDevice->pPSAmbient) pDevice->pPSAmbient->lpVtbl->Release(pDevice->pPSAmbient);
 
     if (pDevice->pDepthStencilView) pDevice->pDepthStencilView->lpVtbl->Release(pDevice->pDepthStencilView);
     if (pDevice->pRenderTargetView) pDevice->pRenderTargetView->lpVtbl->Release(pDevice->pRenderTargetView);
@@ -1032,12 +1188,18 @@ void egClear(uint32_t clearBitFields)
     if (!pBoundDevice) return;
     if (clearBitFields & EG_CLEAR_COLOR)
     {
-        pBoundDevice->pDeviceContext->lpVtbl->ClearRenderTargetView(pBoundDevice->pDeviceContext, pBoundDevice->pRenderTargetView, pBoundDevice->clearColor);
+        pBoundDevice->pDeviceContext->lpVtbl->ClearRenderTargetView(pBoundDevice->pDeviceContext, pBoundDevice->accumulationBuffer.pRenderTargetView, pBoundDevice->clearColor);
+        pBoundDevice->pDeviceContext->lpVtbl->ClearRenderTargetView(pBoundDevice->pDeviceContext, pBoundDevice->gBuffer[G_DIFFUSE].pRenderTargetView, pBoundDevice->clearColor);
+        float black[4] = {0, 0, 0, 1};
+        pBoundDevice->pDeviceContext->lpVtbl->ClearRenderTargetView(pBoundDevice->pDeviceContext, pBoundDevice->gBuffer[G_NORMAL].pRenderTargetView, black);
+        pBoundDevice->pDeviceContext->lpVtbl->ClearRenderTargetView(pBoundDevice->pDeviceContext, pBoundDevice->gBuffer[G_MATERIAL].pRenderTargetView, black);
     }
     if (clearBitFields & EG_CLEAR_DEPTH_STENCIL)
     {
         pBoundDevice->pDeviceContext->lpVtbl->ClearDepthStencilView(pBoundDevice->pDeviceContext, pBoundDevice->pDepthStencilView, 
                                                                     D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
+        float zeroDepth[4] = {0, 0, 0, 0};
+        pBoundDevice->pDeviceContext->lpVtbl->ClearRenderTargetView(pBoundDevice->pDeviceContext, pBoundDevice->gBuffer[G_DEPTH].pRenderTargetView, zeroDepth);
     }
 }
 
@@ -1099,6 +1261,20 @@ void egSet3DViewProj(float eyeX, float eyeY, float eyeZ, float centerX, float ce
 
     // View
     setLookAtMatrix(&pBoundDevice->viewMatrix, eyeX, eyeY, eyeZ, centerX, centerY, centerZ, upX, upY, upZ);
+
+    // Multiply them
+    multMatrix(&pBoundDevice->viewMatrix, &pBoundDevice->projectionMatrix, &pBoundDevice->viewProjMatrix);
+
+    updateViewProjCB();
+}
+
+void egSetViewProj(const float *pView, const float *pProj)
+{
+    if (bIsInBatch) return;
+    if (!pBoundDevice) return;
+
+    memcpy(&pBoundDevice->viewMatrix, pView, sizeof(SEGMatrix));
+    memcpy(&pBoundDevice->projectionMatrix, pProj, sizeof(SEGMatrix));
 
     // Multiply them
     multMatrix(&pBoundDevice->viewMatrix, &pBoundDevice->projectionMatrix, &pBoundDevice->viewProjMatrix);
@@ -1287,47 +1463,134 @@ void drawVertex(SEGVertex *in_pVertex)
     if (currentVertexCount == MAX_VERTEX_COUNT) flush();
 }
 
-void egBegin(EG_TOPOLOGY topology)
+void beginGeometryPass()
+{
+    if (bIsInBatch) return;
+    if (!pBoundDevice) return;
+    if (pBoundDevice->pass == EG_GEOMETRY_PASS) return;
+
+    pBoundDevice->pDeviceContext->lpVtbl->IASetInputLayout(pBoundDevice->pDeviceContext, pBoundDevice->pInputLayout);
+    pBoundDevice->pDeviceContext->lpVtbl->VSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pVS, NULL, 0);
+    pBoundDevice->pDeviceContext->lpVtbl->PSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pPS, NULL, 0);
+
+    // Bind G-Buffer
+    ID3D11RenderTargetView *gBuffer[4] = {
+        pBoundDevice->gBuffer[G_DIFFUSE].pRenderTargetView,
+        pBoundDevice->gBuffer[G_DEPTH].pRenderTargetView,
+        pBoundDevice->gBuffer[G_NORMAL].pRenderTargetView,
+        pBoundDevice->gBuffer[G_MATERIAL].pRenderTargetView,
+    };
+    pBoundDevice->pDeviceContext->lpVtbl->OMSetRenderTargets(pBoundDevice->pDeviceContext, 4, gBuffer, pBoundDevice->pDepthStencilView);
+
+    pBoundDevice->pass = EG_GEOMETRY_PASS;
+}
+
+void beginAmbientPass()
+{
+    if (bIsInBatch) return;
+    if (!pBoundDevice) return;
+    if (pBoundDevice->pass == EG_AMBIENT_PASS) return;
+
+    pBoundDevice->pDeviceContext->lpVtbl->IASetPrimitiveTopology(pBoundDevice->pDeviceContext, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+    pBoundDevice->pDeviceContext->lpVtbl->OMSetRenderTargets(pBoundDevice->pDeviceContext, 1, &pBoundDevice->accumulationBuffer.pRenderTargetView, NULL);
+    pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->gBuffer[G_DIFFUSE].texture.pResourceView);
+
+    pBoundDevice->pDeviceContext->lpVtbl->IASetInputLayout(pBoundDevice->pDeviceContext, pBoundDevice->pInputLayoutPassThrough);
+    pBoundDevice->pDeviceContext->lpVtbl->VSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pVSPassThrough, NULL, 0);
+    pBoundDevice->pDeviceContext->lpVtbl->PSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pPSPassThrough, NULL, 0);
+
+    pBoundDevice->pass = EG_AMBIENT_PASS;
+}
+
+void beginPostProcessPass()
 {
     if (bIsInBatch) return;
     if (!pBoundDevice) return;
 
+    if (pBoundDevice->pass == EG_POST_PROCESS_PASS) return;
+    pBoundDevice->pass = EG_POST_PROCESS_PASS;
+
+    pBoundDevice->pDeviceContext->lpVtbl->OMSetRenderTargets(pBoundDevice->pDeviceContext, 1, &pBoundDevice->pRenderTargetView, NULL);
+    pBoundDevice->pDeviceContext->lpVtbl->IASetPrimitiveTopology(pBoundDevice->pDeviceContext, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+
+    pBoundDevice->pDeviceContext->lpVtbl->IASetInputLayout(pBoundDevice->pDeviceContext, pBoundDevice->pInputLayoutPassThrough);
+    pBoundDevice->pDeviceContext->lpVtbl->VSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pVSPassThrough, NULL, 0);
+    pBoundDevice->pDeviceContext->lpVtbl->PSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pPSAmbient, NULL, 0);
+}
+
+void beginOmniPass()
+{
+    if (bIsInBatch) return;
+    if (!pBoundDevice) return;
+    if (pBoundDevice->pass == EG_OMNI_PASS) return;
+
+    pBoundDevice->pDeviceContext->lpVtbl->IASetPrimitiveTopology(pBoundDevice->pDeviceContext, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+
+    pBoundDevice->pass = EG_OMNI_PASS;
+}
+
+BOOL bMapVB = TRUE;
+
+void egBegin(EG_TOPOLOGY topology)
+{
+    if (bIsInBatch) return;
+    if (!pBoundDevice) return;
+    bMapVB = TRUE;
     currentTopology = topology;
     switch (currentTopology)
     {
         case EG_POINTS:
+            beginGeometryPass();
             pBoundDevice->pDeviceContext->lpVtbl->IASetPrimitiveTopology(pBoundDevice->pDeviceContext, D3D11_PRIMITIVE_TOPOLOGY_POINTLIST);
             break;
         case EG_LINES:
+            beginGeometryPass();
             pBoundDevice->pDeviceContext->lpVtbl->IASetPrimitiveTopology(pBoundDevice->pDeviceContext, D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
             break;
         case EG_LINE_STRIP:
         case EG_LINE_LOOP:
+            beginGeometryPass();
             pBoundDevice->pDeviceContext->lpVtbl->IASetPrimitiveTopology(pBoundDevice->pDeviceContext, D3D11_PRIMITIVE_TOPOLOGY_LINESTRIP);
             break;
         case EG_TRIANGLES:
+            beginGeometryPass();
             pBoundDevice->pDeviceContext->lpVtbl->IASetPrimitiveTopology(pBoundDevice->pDeviceContext, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
             break;
         case EG_TRIANGLE_STRIP:
+            beginGeometryPass();
             pBoundDevice->pDeviceContext->lpVtbl->IASetPrimitiveTopology(pBoundDevice->pDeviceContext, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
             break;
         case EG_TRIANGLE_FAN:
+            beginGeometryPass();
             pBoundDevice->pDeviceContext->lpVtbl->IASetPrimitiveTopology(pBoundDevice->pDeviceContext, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
             break;
         case EG_QUADS:
+            beginGeometryPass();
             pBoundDevice->pDeviceContext->lpVtbl->IASetPrimitiveTopology(pBoundDevice->pDeviceContext, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
             break;
         case EG_QUAD_STRIP:
+            beginGeometryPass();
             pBoundDevice->pDeviceContext->lpVtbl->IASetPrimitiveTopology(pBoundDevice->pDeviceContext, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+            break;
+        case EG_AMBIENTS:
+            beginAmbientPass();
+            bMapVB = FALSE;
+            break;
+        case EG_OMNIS:
+            beginOmniPass();
+            bMapVB = FALSE;
             break;
         default:
             return;
     }
 
     bIsInBatch = TRUE;
-    D3D11_MAPPED_SUBRESOURCE mappedVertexBuffer;
-    pBoundDevice->pDeviceContext->lpVtbl->Map(pBoundDevice->pDeviceContext, pBoundDevice->pVertexBufferRes, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedVertexBuffer);
-    pVertex = (SEGVertex*)mappedVertexBuffer.pData;
+    if (bMapVB)
+    {
+        D3D11_MAPPED_SUBRESOURCE mappedVertexBuffer;
+        pBoundDevice->pDeviceContext->lpVtbl->Map(pBoundDevice->pDeviceContext, pBoundDevice->pVertexBufferRes, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedVertexBuffer);
+        pVertex = (SEGVertex*)mappedVertexBuffer.pData;
+    }
 }
 
 void flush()
@@ -1366,8 +1629,58 @@ void egEnd()
     if (!pBoundDevice) return;
     flush();
     bIsInBatch = FALSE;
+    
+    if (bMapVB)
+    {
+        pBoundDevice->pDeviceContext->lpVtbl->Unmap(pBoundDevice->pDeviceContext, pBoundDevice->pVertexBufferRes, 0);
+    }
+}
+
+void drawScreenQuad(float left, float top, float right, float bottom, float *pColor)
+{
+    D3D11_MAPPED_SUBRESOURCE mappedVertexBuffer;
+    pBoundDevice->pDeviceContext->lpVtbl->Map(pBoundDevice->pDeviceContext, pBoundDevice->pVertexBufferRes, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedVertexBuffer);
+    pVertex = (SEGVertex*)mappedVertexBuffer.pData;
+
+    pVertex[0].x = left;
+    pVertex[0].y = top;
+    pVertex[0].u = 0;
+    pVertex[0].v = 0;
+    memcpy(&pVertex[0].r, pColor, 16);
+
+    pVertex[1].x = left;
+    pVertex[1].y = bottom;
+    pVertex[1].u = 0;
+    pVertex[1].v = 1;
+    memcpy(&pVertex[1].r, pColor, 16);
+
+    pVertex[2].x = right;
+    pVertex[2].y = top;
+    pVertex[2].u = 1;
+    pVertex[2].v = 0;
+    memcpy(&pVertex[2].r, pColor, 16);
+
+    pVertex[3].x = right;
+    pVertex[3].y = bottom;
+    pVertex[3].u = 1;
+    pVertex[3].v = 1;
+    memcpy(&pVertex[3].r, pColor, 16);
 
     pBoundDevice->pDeviceContext->lpVtbl->Unmap(pBoundDevice->pDeviceContext, pBoundDevice->pVertexBufferRes, 0);
+
+    const UINT stride = sizeof(SEGVertex);
+    const UINT offset = 0;
+    pBoundDevice->pDeviceContext->lpVtbl->IASetVertexBuffers(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->pVertexBuffer, &stride, &offset);
+    pBoundDevice->pDeviceContext->lpVtbl->Draw(pBoundDevice->pDeviceContext, 4, 0);
+}
+
+void drawAmbient()
+{
+    drawScreenQuad(-1, 1, 1, -1, &currentVertex.r);
+}
+
+void drawOmni()
+{
 }
 
 void egColor3(float r, float g, float b)
@@ -1376,12 +1689,20 @@ void egColor3(float r, float g, float b)
     currentVertex.g = g;
     currentVertex.b = b;
     currentVertex.a = 1.f;
+    if (currentTopology == EG_AMBIENTS)
+    {
+        drawAmbient();
+    }
 }
 
 void egColor3v(const float *pRGB)
 {
     memcpy(&currentVertex.r, pRGB, 12);
     currentVertex.a = 1.f;
+    if (currentTopology == EG_AMBIENTS)
+    {
+        drawAmbient();
+    }
 }
 
 void egColor4(float r, float g, float b, float a)
@@ -1390,11 +1711,19 @@ void egColor4(float r, float g, float b, float a)
     currentVertex.g = g;
     currentVertex.b = b;
     currentVertex.a = a;
+    if (currentTopology == EG_AMBIENTS)
+    {
+        drawAmbient();
+    }
 }
 
 void egColor4v(const float *pRGBA)
 {
     memcpy(&currentVertex.r, pRGBA, 16);
+    if (currentTopology == EG_AMBIENTS)
+    {
+        drawAmbient();
+    }
 }
 
 void egNormal(float nx, float ny, float nz)
@@ -1426,7 +1755,14 @@ void egPosition2(float x, float y)
     currentVertex.x = x;
     currentVertex.y = y;
     currentVertex.z = 0.f;
-    drawVertex(&currentVertex);
+    if (currentTopology == EG_OMNIS)
+    {
+        drawOmni();
+    }
+    else
+    {
+        drawVertex(&currentVertex);
+    }
 }
 
 void egPosition2v(const float *pPos)
@@ -1434,7 +1770,14 @@ void egPosition2v(const float *pPos)
     if (!bIsInBatch) return;
     memcpy(&currentVertex.x, pPos, 8);
     currentVertex.z = 0.f;
-    drawVertex(&currentVertex);
+    if (currentTopology == EG_OMNIS)
+    {
+        drawOmni();
+    }
+    else
+    {
+        drawVertex(&currentVertex);
+    }
 }
 
 void egPosition3(float x, float y, float z)
@@ -1443,14 +1786,28 @@ void egPosition3(float x, float y, float z)
     currentVertex.x = x;
     currentVertex.y = y;
     currentVertex.z = z;
-    drawVertex(&currentVertex);
+    if (currentTopology == EG_OMNIS)
+    {
+        drawOmni();
+    }
+    else
+    {
+        drawVertex(&currentVertex);
+    }
 }
 
 void egPosition3v(const float *pPos)
 {
     if (!bIsInBatch) return;
     memcpy(&currentVertex.x, pPos, 12);
-    drawVertex(&currentVertex);
+    if (currentTopology == EG_OMNIS)
+    {
+        drawOmni();
+    }
+    else
+    {
+        drawVertex(&currentVertex);
+    }
 }
 
 void egTarget2(float x, float y)
@@ -1481,7 +1838,7 @@ void egRadius2v(const float *pRadius)
 {
 }
 
-void egFalloutExponent(float exponent)
+void egFalloffExponent(float exponent)
 {
 }
 
@@ -1763,4 +2120,24 @@ void egTorus(float radius, float innerRadius, uint32_t slices, uint32_t stacks)
 {
     if (slices < 3) return;
     if (stacks < 3) return;
+}
+
+void egPostProcess()
+{
+    if (bIsInBatch) return;
+    if (!pBoundDevice) return;
+    beginPostProcessPass();
+
+    float white[4] = {1, 1, 1, 1};
+    pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->gBuffer[G_DIFFUSE].texture.pResourceView);
+    drawScreenQuad(-1, 1, 0, 0, white);
+
+    pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->gBuffer[G_DEPTH].texture.pResourceView);
+    drawScreenQuad(0, 1, 1, 0, white);
+
+    pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->gBuffer[G_NORMAL].texture.pResourceView);
+    drawScreenQuad(-1, 0, 0, -1, white);
+
+    pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->accumulationBuffer.texture.pResourceView);
+    drawScreenQuad(0, 0, 1, -1, white);
 }
