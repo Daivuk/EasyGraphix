@@ -139,6 +139,63 @@ float4 main(sInput input):SV_TARGET\n\
     return xdiffuse * input.color;\n\
 }";
 
+const char *g_psOmni =
+"\
+cbuffer InvViewProjCB:register(b0)\n\
+{\n\
+    matrix invViewProjection;\n\
+}\n\
+cbuffer OmniCB:register(b1)\n\
+{\n\
+    float3 lPos;\n\
+    float lRadius;\n\
+    float4 lColor;\n\
+}\n\
+Texture2D xDiffuse:register(t0);\n\
+Texture2D xDepth:register(t1);\n\
+Texture2D xNormal:register(t2);\n\
+Texture2D xMaterial:register(t3);\n\
+SamplerState sSampler:register(s0);\n\
+struct sInput\n\
+{\n\
+    float4 position:SV_POSITION;\n\
+    float2 texCoord:TEXCOORD;\n\
+    float4 color:COLOR;\n\
+};\n\
+float4 main(sInput input):SV_TARGET\n\
+{\n\
+    float4 xdiffuse = xDiffuse.Sample(sSampler, input.texCoord);\n\
+    float xdepth = xDepth.Sample(sSampler, input.texCoord).r;\n\
+    float3 xnormal = xNormal.Sample(sSampler, input.texCoord).xyz;\n\
+    float4 xmaterial = xMaterial.Sample(sSampler, input.texCoord);\n\
+    \n\
+    // Position\n\
+    float4 position;\n\
+    position.xy = float2(input.texCoord.x * 2 - 1, -(input.texCoord.y * 2 - 1));\n\
+    position.z = xdepth;\n\
+    position.w = 1.0f;\n\
+    position = mul(position, invViewProjection);\n\
+    position /= position.w;\n\
+    \n\
+    // Normal\n\
+    float3 normal = xnormal * 2 - 1;\n\
+    float3 dir = lPos - position.xyz; \n\
+    \n\
+    // Attenuation stuff\n\
+    float dis = length(dir);\n\
+    dir /= dis;\n\
+    dis /= lRadius;\n\
+    dis = saturate(1 - dis);\n\
+    dis = pow(dis, 1);\n\
+    float dotNormal = dot(normal, dir);\n\
+    //dotNormal = 1 - (1 - dotNormal) * (1 - dotNormal);\n\
+    float intensity = dis;\n\
+    dotNormal = saturate(dotNormal);\n\
+    intensity *= dotNormal;\n\
+    \n\
+    return xdiffuse * lColor * intensity;\n\
+}";
+
 #define MAX_VERTEX_COUNT (300 * 2 * 3)
 #define DIFFUSE_MAP     0
 #define NORMAL_MAP      1
@@ -340,6 +397,86 @@ void setProjectionMatrix(SEGMatrix *pMatrix, float fov, float aspect, float near
     memcpy(pMatrix->m, m, sizeof(double) * 16);
     transposeMatrix(pMatrix);
 }
+float detMatrix(SEGMatrix *pMatrix)
+{
+    return 
+        + pMatrix->at(3, 0) * pMatrix->at(2, 1) * pMatrix->at(1, 2) * pMatrix->at(0, 3) - pMatrix->at(2, 0) * pMatrix->at(3, 1) * pMatrix->at(1, 2) * pMatrix->at(0, 3)
+        - pMatrix->at(3, 0) * pMatrix->at(1, 1) * pMatrix->at(2, 2) * pMatrix->at(0, 3) + pMatrix->at(1, 0) * pMatrix->at(3, 1) * pMatrix->at(2, 2) * pMatrix->at(0, 3)
+
+        + pMatrix->at(2, 0) * pMatrix->at(1, 1) * pMatrix->at(3, 2) * pMatrix->at(0, 3) - pMatrix->at(1, 0) * pMatrix->at(2, 1) * pMatrix->at(3, 2) * pMatrix->at(0, 3)
+        - pMatrix->at(3, 0) * pMatrix->at(2, 1) * pMatrix->at(0, 2) * pMatrix->at(1, 3) + pMatrix->at(2, 0) * pMatrix->at(3, 1) * pMatrix->at(0, 2) * pMatrix->at(1, 3)
+
+        + pMatrix->at(3, 0) * pMatrix->at(0, 1) * pMatrix->at(2, 2) * pMatrix->at(1, 3) - pMatrix->at(0, 0) * pMatrix->at(3, 1) * pMatrix->at(2, 2) * pMatrix->at(1, 3)
+        - pMatrix->at(2, 0) * pMatrix->at(0, 1) * pMatrix->at(3, 2) * pMatrix->at(1, 3) + pMatrix->at(0, 0) * pMatrix->at(2, 1) * pMatrix->at(3, 2) * pMatrix->at(1, 3)
+
+        + pMatrix->at(3, 0) * pMatrix->at(1, 1) * pMatrix->at(0, 2) * pMatrix->at(2, 3) - pMatrix->at(1, 0) * pMatrix->at(3, 1) * pMatrix->at(0, 2) * pMatrix->at(2, 3)
+        - pMatrix->at(3, 0) * pMatrix->at(0, 1) * pMatrix->at(1, 2) * pMatrix->at(2, 3) + pMatrix->at(0, 0) * pMatrix->at(3, 1) * pMatrix->at(1, 2) * pMatrix->at(2, 3)
+
+        + pMatrix->at(1, 0) * pMatrix->at(0, 1) * pMatrix->at(3, 2) * pMatrix->at(2, 3) - pMatrix->at(0, 0) * pMatrix->at(1, 1) * pMatrix->at(3, 2) * pMatrix->at(2, 3)
+        - pMatrix->at(2, 0) * pMatrix->at(1, 1) * pMatrix->at(0, 2) * pMatrix->at(3, 3) + pMatrix->at(1, 0) * pMatrix->at(2, 1) * pMatrix->at(0, 2) * pMatrix->at(3, 3)
+
+        + pMatrix->at(2, 0) * pMatrix->at(0, 1) * pMatrix->at(1, 2) * pMatrix->at(3, 3) - pMatrix->at(0, 0) * pMatrix->at(2, 1) * pMatrix->at(1, 2) * pMatrix->at(3, 3)
+        - pMatrix->at(1, 0) * pMatrix->at(0, 1) * pMatrix->at(2, 2) * pMatrix->at(3, 3) + pMatrix->at(0, 0) * pMatrix->at(1, 1) * pMatrix->at(2, 2) * pMatrix->at(3, 3);
+}
+void inverseMatrix(SEGMatrix *pMatrix, SEGMatrix *pOut)
+{
+    SEGMatrix ret;
+
+    ret.at(0, 0) = +pMatrix->at(2, 1) *pMatrix->at(3, 2) *pMatrix->at(1, 3) - pMatrix->at(3, 1) *pMatrix->at(2, 2) *pMatrix->at(1, 3) + pMatrix->at(3, 1) *pMatrix->at(1, 2) *pMatrix->at(2, 3)
+        - pMatrix->at(1, 1) *pMatrix->at(3, 2) *pMatrix->at(2, 3) - pMatrix->at(2, 1) *pMatrix->at(1, 2) *pMatrix->at(3, 3) + pMatrix->at(1, 1) *pMatrix->at(2, 2) *pMatrix->at(3, 3);
+
+    ret.at(1, 0) = +pMatrix->at(3, 0) *pMatrix->at(2, 2) *pMatrix->at(1, 3) - pMatrix->at(2, 0) *pMatrix->at(3, 2) *pMatrix->at(1, 3) - pMatrix->at(3, 0) *pMatrix->at(1, 2) *pMatrix->at(2, 3)
+        + pMatrix->at(1, 0) *pMatrix->at(3, 2) *pMatrix->at(2, 3) + pMatrix->at(2, 0) *pMatrix->at(1, 2) *pMatrix->at(3, 3) - pMatrix->at(1, 0) *pMatrix->at(2, 2) *pMatrix->at(3, 3);
+
+    ret.at(2, 0) = +pMatrix->at(2, 0) *pMatrix->at(3, 1) *pMatrix->at(1, 3) - pMatrix->at(3, 0) *pMatrix->at(2, 1) *pMatrix->at(1, 3) + pMatrix->at(3, 0) *pMatrix->at(1, 1) *pMatrix->at(2, 3)
+        - pMatrix->at(1, 0) *pMatrix->at(3, 1) *pMatrix->at(2, 3) - pMatrix->at(2, 0) *pMatrix->at(1, 1) *pMatrix->at(3, 3) + pMatrix->at(1, 0) *pMatrix->at(2, 1) *pMatrix->at(3, 3);
+
+    ret.at(3, 0) = +pMatrix->at(3, 0) *pMatrix->at(2, 1) *pMatrix->at(1, 2) - pMatrix->at(2, 0) *pMatrix->at(3, 1) *pMatrix->at(1, 2) - pMatrix->at(3, 0) *pMatrix->at(1, 1) *pMatrix->at(2, 2)
+        + pMatrix->at(1, 0) *pMatrix->at(3, 1) *pMatrix->at(2, 2) + pMatrix->at(2, 0) *pMatrix->at(1, 1) *pMatrix->at(3, 2) - pMatrix->at(1, 0) *pMatrix->at(2, 1) *pMatrix->at(3, 2);
+
+    ret.at(0, 1) = +pMatrix->at(3, 1) *pMatrix->at(2, 2) *pMatrix->at(0, 3) - pMatrix->at(2, 1) *pMatrix->at(3, 2) *pMatrix->at(0, 3) - pMatrix->at(3, 1) *pMatrix->at(0, 2) *pMatrix->at(2, 3)
+        + pMatrix->at(0, 1) *pMatrix->at(3, 2) *pMatrix->at(2, 3) + pMatrix->at(2, 1) *pMatrix->at(0, 2) *pMatrix->at(3, 3) - pMatrix->at(0, 1) *pMatrix->at(2, 2) *pMatrix->at(3, 3);
+
+    ret.at(1, 1) = +pMatrix->at(2, 0) *pMatrix->at(3, 2) *pMatrix->at(0, 3) - pMatrix->at(3, 0) *pMatrix->at(2, 2) *pMatrix->at(0, 3) + pMatrix->at(3, 0) *pMatrix->at(0, 2) *pMatrix->at(2, 3)
+        - pMatrix->at(0, 0) *pMatrix->at(3, 2) *pMatrix->at(2, 3) - pMatrix->at(2, 0) *pMatrix->at(0, 2) *pMatrix->at(3, 3) + pMatrix->at(0, 0) *pMatrix->at(2, 2) *pMatrix->at(3, 3);
+
+    ret.at(2, 1) = +pMatrix->at(3, 0) *pMatrix->at(2, 1) *pMatrix->at(0, 3) - pMatrix->at(2, 0) *pMatrix->at(3, 1) *pMatrix->at(0, 3) - pMatrix->at(3, 0) *pMatrix->at(0, 1) *pMatrix->at(2, 3)
+        + pMatrix->at(0, 0) *pMatrix->at(3, 1) *pMatrix->at(2, 3) + pMatrix->at(2, 0) *pMatrix->at(0, 1) *pMatrix->at(3, 3) - pMatrix->at(0, 0) *pMatrix->at(2, 1) *pMatrix->at(3, 3);
+
+    ret.at(3, 1) = +pMatrix->at(2, 0) *pMatrix->at(3, 1) *pMatrix->at(0, 2) - pMatrix->at(3, 0) *pMatrix->at(2, 1) *pMatrix->at(0, 2) + pMatrix->at(3, 0) *pMatrix->at(0, 1) *pMatrix->at(2, 2)
+        - pMatrix->at(0, 0) *pMatrix->at(3, 1) *pMatrix->at(2, 2) - pMatrix->at(2, 0) *pMatrix->at(0, 1) *pMatrix->at(3, 2) + pMatrix->at(0, 0) *pMatrix->at(2, 1) *pMatrix->at(3, 2);
+
+    ret.at(0, 2) = +pMatrix->at(1, 1) *pMatrix->at(3, 2) *pMatrix->at(0, 3) - pMatrix->at(3, 1) *pMatrix->at(1, 2) *pMatrix->at(0, 3) + pMatrix->at(3, 1) *pMatrix->at(0, 2) *pMatrix->at(1, 3)
+        - pMatrix->at(0, 1) *pMatrix->at(3, 2) *pMatrix->at(1, 3) - pMatrix->at(1, 1) *pMatrix->at(0, 2) *pMatrix->at(3, 3) + pMatrix->at(0, 1) *pMatrix->at(1, 2) *pMatrix->at(3, 3);
+
+    ret.at(1, 2) = +pMatrix->at(3, 0) *pMatrix->at(1, 2) *pMatrix->at(0, 3) - pMatrix->at(1, 0) *pMatrix->at(3, 2) *pMatrix->at(0, 3) - pMatrix->at(3, 0) *pMatrix->at(0, 2) *pMatrix->at(1, 3)
+        + pMatrix->at(0, 0) *pMatrix->at(3, 2) *pMatrix->at(1, 3) + pMatrix->at(1, 0) *pMatrix->at(0, 2) *pMatrix->at(3, 3) - pMatrix->at(0, 0) *pMatrix->at(1, 2) *pMatrix->at(3, 3);
+
+    ret.at(2, 2) = +pMatrix->at(1, 0) *pMatrix->at(3, 1) *pMatrix->at(0, 3) - pMatrix->at(3, 0) *pMatrix->at(1, 1) *pMatrix->at(0, 3) + pMatrix->at(3, 0) *pMatrix->at(0, 1) *pMatrix->at(1, 3)
+        - pMatrix->at(0, 0) *pMatrix->at(3, 1) *pMatrix->at(1, 3) - pMatrix->at(1, 0) *pMatrix->at(0, 1) *pMatrix->at(3, 3) + pMatrix->at(0, 0) *pMatrix->at(1, 1) *pMatrix->at(3, 3);
+
+    ret.at(3, 2) = +pMatrix->at(3, 0) *pMatrix->at(1, 1) *pMatrix->at(0, 2) - pMatrix->at(1, 0) *pMatrix->at(3, 1) *pMatrix->at(0, 2) - pMatrix->at(3, 0) *pMatrix->at(0, 1) *pMatrix->at(1, 2)
+        + pMatrix->at(0, 0) *pMatrix->at(3, 1) *pMatrix->at(1, 2) + pMatrix->at(1, 0) *pMatrix->at(0, 1) *pMatrix->at(3, 2) - pMatrix->at(0, 0) *pMatrix->at(1, 1) *pMatrix->at(3, 2);
+
+    ret.at(0, 3) = +pMatrix->at(2, 1) *pMatrix->at(1, 2) *pMatrix->at(0, 3) - pMatrix->at(1, 1) *pMatrix->at(2, 2) *pMatrix->at(0, 3) - pMatrix->at(2, 1) *pMatrix->at(0, 2) *pMatrix->at(1, 3)
+        + pMatrix->at(0, 1) *pMatrix->at(2, 2) *pMatrix->at(1, 3) + pMatrix->at(1, 1) *pMatrix->at(0, 2) *pMatrix->at(2, 3) - pMatrix->at(0, 1) *pMatrix->at(1, 2) *pMatrix->at(2, 3);
+
+    ret.at(1, 3) = +pMatrix->at(1, 0) *pMatrix->at(2, 2) *pMatrix->at(0, 3) - pMatrix->at(2, 0) *pMatrix->at(1, 2) *pMatrix->at(0, 3) + pMatrix->at(2, 0) *pMatrix->at(0, 2) *pMatrix->at(1, 3)
+        - pMatrix->at(0, 0) *pMatrix->at(2, 2) *pMatrix->at(1, 3) - pMatrix->at(1, 0) *pMatrix->at(0, 2) *pMatrix->at(2, 3) + pMatrix->at(0, 0) *pMatrix->at(1, 2) *pMatrix->at(2, 3);
+
+    ret.at(2, 3) = +pMatrix->at(2, 0) *pMatrix->at(1, 1) *pMatrix->at(0, 3) - pMatrix->at(1, 0) *pMatrix->at(2, 1) *pMatrix->at(0, 3) - pMatrix->at(2, 0) *pMatrix->at(0, 1) *pMatrix->at(1, 3)
+        + pMatrix->at(0, 0) *pMatrix->at(2, 1) *pMatrix->at(1, 3) + pMatrix->at(1, 0) *pMatrix->at(0, 1) *pMatrix->at(2, 3) - pMatrix->at(0, 0) *pMatrix->at(1, 1) *pMatrix->at(2, 3);
+
+    ret.at(3, 3) = +pMatrix->at(1, 0) *pMatrix->at(2, 1) *pMatrix->at(0, 2) - pMatrix->at(2, 0) *pMatrix->at(1, 1) *pMatrix->at(0, 2) + pMatrix->at(2, 0) *pMatrix->at(0, 1) *pMatrix->at(1, 2)
+        - pMatrix->at(0, 0) *pMatrix->at(2, 1) *pMatrix->at(1, 2) - pMatrix->at(1, 0) *pMatrix->at(0, 1) *pMatrix->at(2, 2) + pMatrix->at(0, 0) *pMatrix->at(1, 1) *pMatrix->at(2, 2);
+
+    float det = detMatrix(pMatrix);
+    for (int i = 0; i < 16; ++i)
+    {
+        ret.m[i] /= det;
+    }
+    memcpy(pOut, &ret, sizeof(SEGMatrix));
+}
 
 // Batch stuff
 typedef struct
@@ -354,6 +491,13 @@ uint32_t currentVertexCount = 0;
 BOOL bIsInBatch = FALSE;
 SEGVertex currentVertex = {0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 1, 1};
 EG_TOPOLOGY currentTopology;
+typedef struct
+{
+    float x, y, z;
+    float radius;
+    float r, g, b, a;
+} SEGOmni;
+SEGOmni currentOmni;
 
 // Textures
 typedef struct
@@ -398,8 +542,10 @@ typedef struct
     ID3D11PixelShader          *pPSPassThrough;
     ID3D11InputLayout          *pInputLayoutPassThrough;
     ID3D11PixelShader          *pPSAmbient;
+    ID3D11PixelShader          *pPSOmni;
     ID3D11Buffer               *pCBViewProj;
     ID3D11Buffer               *pCBModel;
+    ID3D11Buffer               *pCBInvViewProj;
     ID3D11Buffer               *pVertexBuffer;
     ID3D11Resource             *pVertexBufferRes;
     SEGTexture2D               *textures;
@@ -412,12 +558,14 @@ typedef struct
     SEGMatrix                   projectionMatrix;
     SEGMatrix                   viewMatrix;
     SEGMatrix                   viewProjMatrix;
+    SEGMatrix                   invViewProjMatrix;
     SEGState                    states[MAX_STACK];
     uint32_t                    statesStackCount;
     float                       clearColor[4];
     SEGRenderTarget2D           gBuffer[4];
     SEGRenderTarget2D           accumulationBuffer;
     EG_PASS                     pass;
+    ID3D11Buffer               *pCBOmni;
 } SEGDevice;
 SEGDevice  *devices = NULL;
 uint32_t    deviceCount = 0;
@@ -844,6 +992,7 @@ EGDevice egCreateDevice(HWND windowHandle)
     ID3DBlob *pVSBPassThrough = compileShader(g_vsPassThrough, "vs_5_0");
     ID3DBlob *pPSBPassThrough = compileShader(g_psPassThrough, "ps_5_0");
     ID3DBlob *pPSBAmbient = compileShader(g_psAmbient, "ps_5_0");
+    ID3DBlob *pPSBOmni = compileShader(g_psOmni, "ps_5_0");
     result = pBoundDevice->pDevice->lpVtbl->CreateVertexShader(pBoundDevice->pDevice, pVSB->lpVtbl->GetBufferPointer(pVSB), pVSB->lpVtbl->GetBufferSize(pVSB), NULL, &pBoundDevice->pVS);
     if (result != S_OK)
     {
@@ -873,6 +1022,13 @@ EGDevice egCreateDevice(HWND windowHandle)
         return 0;
     }
     result = pBoundDevice->pDevice->lpVtbl->CreatePixelShader(pBoundDevice->pDevice, pPSBAmbient->lpVtbl->GetBufferPointer(pPSBAmbient), pPSBAmbient->lpVtbl->GetBufferSize(pPSBAmbient), NULL, &pBoundDevice->pPSAmbient);
+    if (result != S_OK)
+    {
+        sprintf_s(lastError, 256, "Failed CreatePixelShader Ambient");
+        egDestroyDevice(&ret);
+        return 0;
+    }
+    result = pBoundDevice->pDevice->lpVtbl->CreatePixelShader(pBoundDevice->pDevice, pPSBOmni->lpVtbl->GetBufferPointer(pPSBOmni), pPSBOmni->lpVtbl->GetBufferSize(pPSBOmni), NULL, &pBoundDevice->pPSOmni);
     if (result != S_OK)
     {
         sprintf_s(lastError, 256, "Failed CreatePixelShader Ambient");
@@ -912,20 +1068,39 @@ EGDevice egCreateDevice(HWND windowHandle)
     }
 
     // Create uniforms
-    D3D11_BUFFER_DESC cbDesc = {64, D3D11_USAGE_DYNAMIC, D3D11_BIND_CONSTANT_BUFFER, D3D11_CPU_ACCESS_WRITE, 0, 0};
-    result = pBoundDevice->pDevice->lpVtbl->CreateBuffer(pBoundDevice->pDevice, &cbDesc, NULL, &pBoundDevice->pCBViewProj);
-    if (result != S_OK)
     {
-        sprintf_s(lastError, 256, "Failed CreateBuffer CBViewProj");
-        egDestroyDevice(&ret);
-        return 0;
+        D3D11_BUFFER_DESC cbDesc = {64, D3D11_USAGE_DYNAMIC, D3D11_BIND_CONSTANT_BUFFER, D3D11_CPU_ACCESS_WRITE, 0, 0};
+        result = pBoundDevice->pDevice->lpVtbl->CreateBuffer(pBoundDevice->pDevice, &cbDesc, NULL, &pBoundDevice->pCBViewProj);
+        if (result != S_OK)
+        {
+            sprintf_s(lastError, 256, "Failed CreateBuffer CBViewProj");
+            egDestroyDevice(&ret);
+            return 0;
+        }
+        result = pBoundDevice->pDevice->lpVtbl->CreateBuffer(pBoundDevice->pDevice, &cbDesc, NULL, &pBoundDevice->pCBModel);
+        if (result != S_OK)
+        {
+            sprintf_s(lastError, 256, "Failed CreateBuffer CBModel");
+            egDestroyDevice(&ret);
+            return 0;
+        }
+        result = pBoundDevice->pDevice->lpVtbl->CreateBuffer(pBoundDevice->pDevice, &cbDesc, NULL, &pBoundDevice->pCBInvViewProj);
+        if (result != S_OK)
+        {
+            sprintf_s(lastError, 256, "Failed CreateBuffer CBInvViewProj");
+            egDestroyDevice(&ret);
+            return 0;
+        }
     }
-    result = pBoundDevice->pDevice->lpVtbl->CreateBuffer(pBoundDevice->pDevice, &cbDesc, NULL, &pBoundDevice->pCBModel);
-    if (result != S_OK)
     {
-        sprintf_s(lastError, 256, "Failed CreateBuffer CBModel");
-        egDestroyDevice(&ret);
-        return 0;
+        D3D11_BUFFER_DESC cbDesc = {sizeof(SEGOmni), D3D11_USAGE_DYNAMIC, D3D11_BIND_CONSTANT_BUFFER, D3D11_CPU_ACCESS_WRITE, 0, 0};
+        result = pBoundDevice->pDevice->lpVtbl->CreateBuffer(pBoundDevice->pDevice, &cbDesc, NULL, &pBoundDevice->pCBOmni);
+        if (result != S_OK)
+        {
+            sprintf_s(lastError, 256, "Failed CreateBuffer CBInvViewProj");
+            egDestroyDevice(&ret);
+            return 0;
+        }
     }
 
     // Create our geometry batch vertex buffer that will be used to batch everything
@@ -1138,6 +1313,8 @@ void egDestroyDevice(EGDevice *pDeviceID)
 
     if (pDevice->pCBModel) pDevice->pCBModel->lpVtbl->Release(pDevice->pCBModel);
     if (pDevice->pCBViewProj) pDevice->pCBViewProj->lpVtbl->Release(pDevice->pCBViewProj);
+    if (pDevice->pCBInvViewProj) pDevice->pCBInvViewProj->lpVtbl->Release(pDevice->pCBInvViewProj);
+    if (pDevice->pCBOmni) pDevice->pCBOmni->lpVtbl->Release(pDevice->pCBOmni);
 
     if (pDevice->pInputLayout) pDevice->pInputLayout->lpVtbl->Release(pDevice->pInputLayout);
     if (pDevice->pPS) pDevice->pPS->lpVtbl->Release(pDevice->pPS);
@@ -1146,6 +1323,7 @@ void egDestroyDevice(EGDevice *pDeviceID)
     if (pDevice->pPSPassThrough) pDevice->pPSPassThrough->lpVtbl->Release(pDevice->pPSPassThrough);
     if (pDevice->pVSPassThrough) pDevice->pVSPassThrough->lpVtbl->Release(pDevice->pVSPassThrough);
     if (pDevice->pPSAmbient) pDevice->pPSAmbient->lpVtbl->Release(pDevice->pPSAmbient);
+    if (pDevice->pPSOmni) pDevice->pPSOmni->lpVtbl->Release(pDevice->pPSOmni);
 
     if (pDevice->pDepthStencilView) pDevice->pDepthStencilView->lpVtbl->Release(pDevice->pDepthStencilView);
     if (pDevice->pRenderTargetView) pDevice->pRenderTargetView->lpVtbl->Release(pDevice->pRenderTargetView);
@@ -1215,6 +1393,30 @@ void updateViewProjCB()
     pBoundDevice->pDeviceContext->lpVtbl->VSSetConstantBuffers(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->pCBViewProj);
 }
 
+void updateInvViewProjCB()
+{
+    D3D11_MAPPED_SUBRESOURCE map;
+    ID3D11Resource *pRes = NULL;
+    pBoundDevice->pCBInvViewProj->lpVtbl->QueryInterface(pBoundDevice->pCBInvViewProj, &IID_ID3D11Resource, &pRes);
+    pBoundDevice->pDeviceContext->lpVtbl->Map(pBoundDevice->pDeviceContext, pRes, 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
+    memcpy(map.pData, pBoundDevice->invViewProjMatrix.m, 64);
+    pBoundDevice->pDeviceContext->lpVtbl->Unmap(pBoundDevice->pDeviceContext, pRes, 0);
+    pRes->lpVtbl->Release(pRes);
+    pBoundDevice->pDeviceContext->lpVtbl->PSSetConstantBuffers(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->pCBInvViewProj);
+}
+
+void updateOmniCB()
+{
+    D3D11_MAPPED_SUBRESOURCE map;
+    ID3D11Resource *pRes = NULL;
+    pBoundDevice->pCBOmni->lpVtbl->QueryInterface(pBoundDevice->pCBOmni, &IID_ID3D11Resource, &pRes);
+    pBoundDevice->pDeviceContext->lpVtbl->Map(pBoundDevice->pDeviceContext, pRes, 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
+    memcpy(map.pData, &currentOmni, sizeof(SEGOmni));
+    pBoundDevice->pDeviceContext->lpVtbl->Unmap(pBoundDevice->pDeviceContext, pRes, 0);
+    pRes->lpVtbl->Release(pRes);
+    pBoundDevice->pDeviceContext->lpVtbl->PSSetConstantBuffers(pBoundDevice->pDeviceContext, 1, 1, &pBoundDevice->pCBOmni);
+}
+
 void egSet2DViewProj(float nearClip, float farClip)
 {
     if (bIsInBatch) return;
@@ -1247,7 +1449,11 @@ void egSet2DViewProj(float nearClip, float farClip)
     // Multiply them
     multMatrix(&pBoundDevice->viewMatrix, &pBoundDevice->projectionMatrix, &pBoundDevice->viewProjMatrix);
 
+    // Inverse for light pass
+    inverseMatrix(&pBoundDevice->viewProjMatrix, &pBoundDevice->invViewProjMatrix);
+
     updateViewProjCB();
+    updateInvViewProjCB();
 }
 
 void egSet3DViewProj(float eyeX, float eyeY, float eyeZ, float centerX, float centerY, float centerZ, float upX, float upY, float upZ, float fov, float nearClip, float farClip)
@@ -1265,7 +1471,11 @@ void egSet3DViewProj(float eyeX, float eyeY, float eyeZ, float centerX, float ce
     // Multiply them
     multMatrix(&pBoundDevice->viewMatrix, &pBoundDevice->projectionMatrix, &pBoundDevice->viewProjMatrix);
 
+    // Inverse for light pass
+    inverseMatrix(&pBoundDevice->viewProjMatrix, &pBoundDevice->invViewProjMatrix);
+
     updateViewProjCB();
+    updateInvViewProjCB();
 }
 
 void egSetViewProj(const float *pView, const float *pProj)
@@ -1279,7 +1489,11 @@ void egSetViewProj(const float *pView, const float *pProj)
     // Multiply them
     multMatrix(&pBoundDevice->viewMatrix, &pBoundDevice->projectionMatrix, &pBoundDevice->viewProjMatrix);
 
+    // Inverse for light pass
+    inverseMatrix(&pBoundDevice->viewProjMatrix, &pBoundDevice->invViewProjMatrix);
+
     updateViewProjCB();
+    updateInvViewProjCB();
 }
 
 void egViewPort(uint32_t x, uint32_t y, uint32_t width, uint32_t height)
@@ -1468,10 +1682,15 @@ void beginGeometryPass()
     if (bIsInBatch) return;
     if (!pBoundDevice) return;
     if (pBoundDevice->pass == EG_GEOMETRY_PASS) return;
+    pBoundDevice->pass = EG_GEOMETRY_PASS;
 
     pBoundDevice->pDeviceContext->lpVtbl->IASetInputLayout(pBoundDevice->pDeviceContext, pBoundDevice->pInputLayout);
     pBoundDevice->pDeviceContext->lpVtbl->VSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pVS, NULL, 0);
     pBoundDevice->pDeviceContext->lpVtbl->PSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pPS, NULL, 0);
+
+    // Unbind if it's still bound
+    ID3D11ShaderResourceView *nullResources[3] = {NULL, NULL, NULL};
+    pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 1, 3, nullResources);
 
     // Bind G-Buffer
     ID3D11RenderTargetView *gBuffer[4] = {
@@ -1481,8 +1700,6 @@ void beginGeometryPass()
         pBoundDevice->gBuffer[G_MATERIAL].pRenderTargetView,
     };
     pBoundDevice->pDeviceContext->lpVtbl->OMSetRenderTargets(pBoundDevice->pDeviceContext, 4, gBuffer, pBoundDevice->pDepthStencilView);
-
-    pBoundDevice->pass = EG_GEOMETRY_PASS;
 }
 
 void beginAmbientPass()
@@ -1490,6 +1707,7 @@ void beginAmbientPass()
     if (bIsInBatch) return;
     if (!pBoundDevice) return;
     if (pBoundDevice->pass == EG_AMBIENT_PASS) return;
+    pBoundDevice->pass = EG_AMBIENT_PASS;
 
     pBoundDevice->pDeviceContext->lpVtbl->IASetPrimitiveTopology(pBoundDevice->pDeviceContext, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
     pBoundDevice->pDeviceContext->lpVtbl->OMSetRenderTargets(pBoundDevice->pDeviceContext, 1, &pBoundDevice->accumulationBuffer.pRenderTargetView, NULL);
@@ -1497,9 +1715,34 @@ void beginAmbientPass()
 
     pBoundDevice->pDeviceContext->lpVtbl->IASetInputLayout(pBoundDevice->pDeviceContext, pBoundDevice->pInputLayoutPassThrough);
     pBoundDevice->pDeviceContext->lpVtbl->VSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pVSPassThrough, NULL, 0);
-    pBoundDevice->pDeviceContext->lpVtbl->PSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pPSPassThrough, NULL, 0);
+    pBoundDevice->pDeviceContext->lpVtbl->PSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pPSAmbient, NULL, 0);
 
-    pBoundDevice->pass = EG_AMBIENT_PASS;
+    egEnable(EG_BLEND);
+    egBlendFunc(EG_ONE, EG_ONE);
+    updateState();
+}
+
+void beginOmniPass()
+{
+    if (bIsInBatch) return;
+    if (!pBoundDevice) return;
+    if (pBoundDevice->pass == EG_OMNI_PASS) return;
+    pBoundDevice->pass = EG_OMNI_PASS;
+
+    pBoundDevice->pDeviceContext->lpVtbl->IASetPrimitiveTopology(pBoundDevice->pDeviceContext, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+    pBoundDevice->pDeviceContext->lpVtbl->OMSetRenderTargets(pBoundDevice->pDeviceContext, 1, &pBoundDevice->accumulationBuffer.pRenderTargetView, NULL);
+    pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->gBuffer[G_DIFFUSE].texture.pResourceView);
+    pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 1, 1, &pBoundDevice->gBuffer[G_DEPTH].texture.pResourceView);
+    pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 2, 1, &pBoundDevice->gBuffer[G_NORMAL].texture.pResourceView);
+    pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 3, 1, &pBoundDevice->gBuffer[G_MATERIAL].texture.pResourceView);
+
+    pBoundDevice->pDeviceContext->lpVtbl->IASetInputLayout(pBoundDevice->pDeviceContext, pBoundDevice->pInputLayoutPassThrough);
+    pBoundDevice->pDeviceContext->lpVtbl->VSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pVSPassThrough, NULL, 0);
+    pBoundDevice->pDeviceContext->lpVtbl->PSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pPSOmni, NULL, 0);
+
+    egEnable(EG_BLEND);
+    egBlendFunc(EG_ONE, EG_ONE);
+    updateState();
 }
 
 void beginPostProcessPass()
@@ -1515,18 +1758,10 @@ void beginPostProcessPass()
 
     pBoundDevice->pDeviceContext->lpVtbl->IASetInputLayout(pBoundDevice->pDeviceContext, pBoundDevice->pInputLayoutPassThrough);
     pBoundDevice->pDeviceContext->lpVtbl->VSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pVSPassThrough, NULL, 0);
-    pBoundDevice->pDeviceContext->lpVtbl->PSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pPSAmbient, NULL, 0);
-}
+    pBoundDevice->pDeviceContext->lpVtbl->PSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pPSPassThrough, NULL, 0);
 
-void beginOmniPass()
-{
-    if (bIsInBatch) return;
-    if (!pBoundDevice) return;
-    if (pBoundDevice->pass == EG_OMNI_PASS) return;
-
-    pBoundDevice->pDeviceContext->lpVtbl->IASetPrimitiveTopology(pBoundDevice->pDeviceContext, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
-
-    pBoundDevice->pass = EG_OMNI_PASS;
+    egDisable(EG_BLEND);
+    updateState();
 }
 
 BOOL bMapVB = TRUE;
@@ -1681,6 +1916,11 @@ void drawAmbient()
 
 void drawOmni()
 {
+    memcpy(&currentOmni.x, &currentVertex.x, 12);
+    memcpy(&currentOmni.r, &currentVertex.r, 16);
+    updateOmniCB();
+    float color[4] = {1, 1, 1, 1};
+    drawScreenQuad(-1, 1, 1, -1, color);
 }
 
 void egColor3(float r, float g, float b)
@@ -1828,6 +2068,7 @@ void egTarget3v(const float *pPos)
 
 void egRadius(float radius)
 {
+    currentOmni.radius = radius;
 }
 
 void egRadius2(float innerRadius, float outterRadius)

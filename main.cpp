@@ -72,15 +72,26 @@ void draw()
     egCube(5);
 
     egBegin(EG_AMBIENTS);
-    egColor3(.12f, .1f, .15f);
+    {
+        egColor3(.12f, .1f, .15f); // This will render an ambient pass
+    }
     egEnd();
 
     egBegin(EG_OMNIS);
-    egColor3(1, 1, 1);
-    egRadius(20);
-    egFalloffExponent(1);
-    egMultiply(1);
-    egPosition3(-5, -5, 3);
+    {
+        egFalloffExponent(1);
+        egMultiply(1);
+        egRadius(30);
+
+        egColor3(1, .5f, .5f);
+        egPosition3(-15, 15, 8); // This will render the light
+
+        egColor3(.5f, 1, .5f);
+        egPosition3(15, -15, 8);
+
+        egColor3(.5f, .5f, 1);
+        egPosition3(-15, -15, 8);
+    }
     egEnd();
 
     egPostProcess();
