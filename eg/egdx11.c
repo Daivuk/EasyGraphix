@@ -8,6 +8,8 @@
 #define TO_RAD(__deg__) (__deg__ * PI / 180.f)
 #define TO_DEG(__rad__) (__rad__ * 180.f / PI)
 
+const char lastError[256] = {0};
+
 // Shaders
 const char *g_vs =
 "\
@@ -293,6 +295,7 @@ typedef struct
     ID3D11Device               *pDevice;
     ID3D11DeviceContext        *pDeviceContext;
     ID3D11RenderTargetView     *pRenderTargetView;
+    ID3D11DepthStencilView     *pDepthStencilView;
     D3D11_TEXTURE2D_DESC        backBufferDesc;
     ID3D11VertexShader         *pVS;
     ID3D11PixelShader          *pPS;
@@ -330,6 +333,19 @@ void resetStates()
     egViewPort(0, 0, (uint32_t)pBoundDevice->backBufferDesc.Width, (uint32_t)pBoundDevice->backBufferDesc.Height);
     egModelIdentity();
 
+    pState->depth.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
+    pState->depth.DepthFunc = D3D11_COMPARISON_LESS;
+    pState->depth.StencilEnable = FALSE;
+    pState->depth.StencilReadMask = D3D11_DEFAULT_STENCIL_READ_MASK;
+    pState->depth.StencilWriteMask = D3D11_DEFAULT_STENCIL_WRITE_MASK;
+    pState->depth.FrontFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
+    pState->depth.FrontFace.StencilDepthFailOp = D3D11_STENCIL_OP_KEEP;
+    pState->depth.FrontFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
+    pState->depth.FrontFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
+    pState->depth.BackFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
+    pState->depth.BackFace.StencilDepthFailOp = D3D11_STENCIL_OP_KEEP;
+    pState->depth.BackFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
+    pState->depth.BackFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
     pState->rasterizer.FillMode = D3D11_FILL_SOLID;
     pState->rasterizer.CullMode = D3D11_CULL_NONE;
     for (int i = 0; i < 8; ++i)
@@ -358,7 +374,7 @@ void resetStates()
     pBoundDevice->pDeviceContext->lpVtbl->IASetInputLayout(pBoundDevice->pDeviceContext, pBoundDevice->pInputLayout);
     pBoundDevice->pDeviceContext->lpVtbl->VSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pVS, NULL, 0);
     pBoundDevice->pDeviceContext->lpVtbl->PSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pPS, NULL, 0);
-    pBoundDevice->pDeviceContext->lpVtbl->OMSetRenderTargets(pBoundDevice->pDeviceContext, 1, &pBoundDevice->pRenderTargetView, NULL);
+    pBoundDevice->pDeviceContext->lpVtbl->OMSetRenderTargets(pBoundDevice->pDeviceContext, 1, &pBoundDevice->pRenderTargetView, pBoundDevice->pDepthStencilView);
 
     pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->pDefaultTextureMaps[DIFFUSE_MAP].pResourceView);
     pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 1, 1, &pBoundDevice->pDefaultTextureMaps[NORMAL_MAP].pResourceView);
@@ -526,6 +542,7 @@ EGDevice egCreateDevice(HWND windowHandle)
     HRESULT                 result;
     ID3D11Texture2D        *pBackBuffer;
     ID3D11Resource         *pBackBufferRes;
+    ID3D11Texture2D        *pDepthStencilBuffer;
 
     //device.worldMatrices = (SEGMatrix*)malloc(sizeof(SEGMatrix) * MAX_STACK);
 
@@ -562,6 +579,39 @@ EGDevice egCreateDevice(HWND windowHandle)
     pBackBufferRes->lpVtbl->Release(pBackBufferRes);
     pBackBuffer->lpVtbl->Release(pBackBuffer);
 
+    // Set up the description of the depth buffer.
+    D3D11_TEXTURE2D_DESC depthBufferDesc = {0};
+    depthBufferDesc.Width = device.backBufferDesc.Width;
+    depthBufferDesc.Height = device.backBufferDesc.Height;
+    depthBufferDesc.MipLevels = 1;
+    depthBufferDesc.ArraySize = 1;
+    depthBufferDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+    depthBufferDesc.SampleDesc.Count = 1;
+    depthBufferDesc.SampleDesc.Quality = 0;
+    depthBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+    depthBufferDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+    depthBufferDesc.CPUAccessFlags = 0;
+    depthBufferDesc.MiscFlags = 0;
+
+    // Create the texture for the depth buffer using the filled out description.
+    result = device.pDevice->lpVtbl->CreateTexture2D(device.pDevice, &depthBufferDesc, NULL, &pDepthStencilBuffer);
+    if (result != S_OK) return 0;
+
+    // Initailze the depth stencil view.
+    D3D11_DEPTH_STENCIL_VIEW_DESC depthStencilViewDesc = {0};
+    depthStencilViewDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+    depthStencilViewDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+    depthStencilViewDesc.Texture2D.MipSlice = 0;
+
+    // Create the depth stencil view.
+    result = pDepthStencilBuffer->lpVtbl->QueryInterface(pDepthStencilBuffer, &IID_ID3D11Resource, (void**)&pBackBufferRes);
+    if (result != S_OK) return 0;
+    result = device.pDevice->lpVtbl->CreateDepthStencilView(device.pDevice, pBackBufferRes, &depthStencilViewDesc, &device.pDepthStencilView);
+    if (result != S_OK) return 0;
+    pBackBufferRes->lpVtbl->Release(pBackBufferRes);
+    pDepthStencilBuffer->lpVtbl->Release(pDepthStencilBuffer);
+
+    // Set as currently bound device
     devices = realloc(devices, sizeof(SEGDevice) * (deviceCount + 1));
     memcpy(devices + deviceCount, &device, sizeof(SEGDevice));
     pBoundDevice = devices + deviceCount;
@@ -660,6 +710,7 @@ void egDestroyDevice(EGDevice *pDeviceID)
     if (bIsInBatch) return;
     SEGDevice *pDevice = devices + (*pDeviceID - 1);
 
+    pDevice->pDepthStencilView->lpVtbl->Release(pDevice->pDepthStencilView);
     pDevice->pRenderTargetView->lpVtbl->Release(pDevice->pRenderTargetView);
     pDevice->pDeviceContext->lpVtbl->Release(pDevice->pDeviceContext);
     pDevice->pDevice->lpVtbl->Release(pDevice->pDevice);
@@ -698,13 +749,18 @@ void egClearColor(float r, float g, float b, float a)
     pBoundDevice->clearColor[3] = a;
 }
 
-void egClear(EG_CLEAR_BITFIELD clearBitFields)
+void egClear(uint32_t clearBitFields)
 {
     if (bIsInBatch) return;
     if (!pBoundDevice) return;
     if (clearBitFields & EG_CLEAR_COLOR)
     {
         pBoundDevice->pDeviceContext->lpVtbl->ClearRenderTargetView(pBoundDevice->pDeviceContext, pBoundDevice->pRenderTargetView, pBoundDevice->clearColor);
+    }
+    if (clearBitFields & EG_CLEAR_DEPTH_STENCIL)
+    {
+        pBoundDevice->pDeviceContext->lpVtbl->ClearDepthStencilView(pBoundDevice->pDeviceContext, pBoundDevice->pDepthStencilView, 
+                                                                    D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
     }
 }
 
@@ -1397,16 +1453,22 @@ void egCube(float size)
 
 void egSphere(float radius, uint32_t slices, uint32_t stacks)
 {
+    if (slices < 3) return;
+    if (stacks < 2) return;
 }
 
 void egCylinder(float bottomRadius, float topRadius, float height, uint32_t slices)
 {
+    if (slices < 3) return;
 }
 
 void egTube(float outterRadius, float innerRadius, float height, uint32_t slices)
 {
+    if (slices < 3) return;
 }
 
 void egTorus(float radius, float innerRadius, uint32_t slices, uint32_t stacks)
 {
+    if (slices < 3) return;
+    if (stacks < 3) return;
 }

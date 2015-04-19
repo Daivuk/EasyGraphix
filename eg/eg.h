@@ -24,9 +24,8 @@ extern "C"
     */
     typedef enum
     {
-        EG_CLEAR_COLOR      = 0x01, /*!< Color buffer */
-        EG_CLEAR_DEPTH      = 0x02, /*!< Depth buffer value */
-        EG_CLEAR_STENCIL    = 0x04  /*!< Stencil buffer */
+        EG_CLEAR_COLOR          = 0x01, /*!< Clear color buffer */
+        EG_CLEAR_DEPTH_STENCIL  = 0x02, /*!< Clear Depth stencil buffer */
     } EG_CLEAR_BITFIELD;
 
     typedef enum
@@ -117,6 +116,9 @@ extern "C"
         EG_SRC_ALPHA_SATURATE   = 10,
     } EG_BLEND_FACTOR;
 
+    // Error
+    const char *egGetError();
+
     // Device related functions
 #ifdef WIN32
     EGDevice    egCreateDevice(HWND windowHandle);
@@ -131,7 +133,7 @@ extern "C"
     void        egClearColorv(const float *pColor);
     void        egClearDepth(float d);
     void        egClearStencil(uint8_t s);
-    void        egClear(EG_CLEAR_BITFIELD clearBitFields);
+    void        egClear(uint32_t clearBitFields);
 
     // View setup
     void        egSet2DViewProj(float nearClip, float farClip);
