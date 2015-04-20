@@ -8,19 +8,53 @@
 
 HWND        windowHandle;
 EGDevice    device;
-EGTexture   texture;
-
+EGTexture   diffuse;
+EGTexture   normal;
+EGTexture   material;
+EGTexture   diffuseFloor;
+EGTexture   normalFloor;
+EGTexture   materialFloor;
 void init()
 {
     device = egCreateDevice(windowHandle);
 
-    std::vector<unsigned char> image;
     unsigned int w, h;
-    auto ret = lodepng::decode(image, w, h, "stone.png");
-    assert(!ret);
-    byte* pData = &(image[0]);
-
-    texture = egCreateTexture2D(w, h, pData, EG_U8 | EG_RGBA, EG_GENERATE_MIPMAPS);
+    {
+        std::vector<unsigned char> image;
+        auto ret = lodepng::decode(image, w, h, "d01.png");
+        assert(!ret);
+        diffuseFloor = egCreateTexture2D(w, h, image.data(), EG_U8 | EG_RGBA, EG_GENERATE_MIPMAPS);
+    }
+    {
+        std::vector<unsigned char> image;
+        auto ret = lodepng::decode(image, w, h, "n01.png");
+        assert(!ret);
+        normalFloor = egCreateTexture2D(w, h, image.data(), EG_U8 | EG_RGBA, EG_GENERATE_MIPMAPS);
+    }
+    {
+        std::vector<unsigned char> image;
+        auto ret = lodepng::decode(image, w, h, "m01.png");
+        assert(!ret);
+        materialFloor = egCreateTexture2D(w, h, image.data(), EG_U8 | EG_RGBA, EG_GENERATE_MIPMAPS);
+    }
+    {
+        std::vector<unsigned char> image;
+        auto ret = lodepng::decode(image, w, h, "d02.png");
+        assert(!ret);
+        diffuse = egCreateTexture2D(w, h, image.data(), EG_U8 | EG_RGBA, EG_GENERATE_MIPMAPS);
+    }
+    {
+        std::vector<unsigned char> image;
+        auto ret = lodepng::decode(image, w, h, "n02.png");
+        assert(!ret);
+        normal = egCreateTexture2D(w, h, image.data(), EG_U8 | EG_RGBA, EG_GENERATE_MIPMAPS);
+    }
+    {
+        std::vector<unsigned char> image;
+        auto ret = lodepng::decode(image, w, h, "m02.png");
+        assert(!ret);
+        material = egCreateTexture2D(w, h, image.data(), EG_U8 | EG_RGBA, EG_GENERATE_MIPMAPS);
+    }
 }
 
 void shutdown()
@@ -39,36 +73,38 @@ void draw()
 
     egModelIdentity();
 
-    egSet3DViewProj(-15, -15, 10, 0, 0, 0, 0, 0, 1, 90, .1f, 10000.f);
+    egSet3DViewProj(-5, -5, 5, 0, 0, 0, 0, 0, 1, 70, .1f, 10000.f);
     egEnable(EG_DEPTH_TEST);
 
     static float rotation = 0.f;
     rotation += 1.f;
 
     egColor3(1, 1, 1);
-    egBindDiffuse(0);
+    egBindDiffuse(diffuseFloor);
+    egBindNormal(normalFloor);
+    egBindMaterial(materialFloor);
     egModelPush();
-    egModelScale(200, 200, 1);
-    egModelTranslate(0, 0, -5);
-    egCube(1);
+    egModelTranslate(0, 0, -2.5);
+    egTangent(1, 0, 0);
+    egBinormal(0, -1, 0);
+    egNormal(0, 0, 1);
+    egBegin(EG_QUADS);
+    egTexCoord(0, 0);
+    egPosition3(-100, 100, 0);
+    egTexCoord(0, 200 / 5);
+    egPosition3(-100, -100, 0);
+    egTexCoord(200 / 5, 200 / 5);
+    egPosition3(100, -100, 0);
+    egTexCoord(200 / 5, 0);
+    egPosition3(100, 100, 0);
+    egEnd();
     egModelPop();
 
-    egBindDiffuse(texture);
+    egColor3(1, 1, 1);
     egModelRotate(rotation, 0, 0, 1);
-    egColor3(1, .5f, .5f);
-    egCube(5);
-
-    egStatePush();
-    egModelPush();
-    egDisable(EG_DEPTH_TEST);
-    egModelTranslate(0, -10, 0);
-    egColor3(.5f, 1, .5f);
-    egCube(5);
-    egModelPop();
-    egStatePop();
-
-    egModelTranslate(-10, 0, 0);
-    egColor3(.5f, .5f, 1);
+    egBindDiffuse(diffuse);
+    egBindNormal(normal);
+    egBindMaterial(material);
     egCube(5);
 
     egBegin(EG_AMBIENTS);
@@ -81,16 +117,21 @@ void draw()
     {
         egFalloffExponent(1);
         egMultiply(1);
-        egRadius(30);
+        egRadius(40);
 
-        egColor3(1, .5f, .5f);
-        egPosition3(-15, 15, 8); // This will render the light
+        egColor3(1, .75f, .5f);
+        egPosition3(-15, 15, 10); // This will render the light
 
-        egColor3(.5f, 1, .5f);
-        egPosition3(15, -15, 8);
+        egColor3(.5f, .75f, 1);
+        egPosition3(15, -15, 10);
 
-        egColor3(.5f, .5f, 1);
-        egPosition3(-15, -15, 8);
+        egRadius(10);
+
+        egColor3(.5f, .75f, 1);
+        egPosition3(0, -4, -2.0f); // This will render the light
+
+        egColor3(1, .75f, .5f);
+        egPosition3(-4, 0, -2.0f); // This will render the light
     }
     egEnd();
 

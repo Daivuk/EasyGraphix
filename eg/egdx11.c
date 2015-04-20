@@ -26,6 +26,8 @@ struct sInput\n\
 {\n\
     float3 position:POSITION;\n\
     float3 normal:NORMAL;\n\
+    float3 tangent:TANGENT;\n\
+    float3 binormal:BINORMAL;\n\
     float2 texCoord:TEXCOORD;\n\
     float4 color:COLOR;\n\
 };\n\
@@ -33,6 +35,8 @@ struct sOutput\n\
 {\n\
     float4 position:SV_POSITION;\n\
     float3 normal:NORMAL;\n\
+    float3 tangent:TANGENT;\n\
+    float3 binormal:BINORMAL;\n\
     float2 texCoord:TEXCOORD;\n\
     float4 color:COLOR;\n\
     float2 depth:TEXCOORD1;\n\
@@ -42,7 +46,9 @@ sOutput main(sInput input)\n\
     sOutput output;\n\
     float4 worldPosition = mul(float4(input.position, 1), model);\n\
     output.position = mul(worldPosition, viewProj);\n\
-    output.normal = mul(float4(input.normal, 0), model).xyz;\n\
+    output.normal = normalize(mul(float4(input.normal, 0), model).xyz);\n\
+    output.tangent = normalize(mul(float4(input.tangent, 0), model).xyz);\n\
+    output.binormal = normalize(mul(float4(input.binormal, 0), model).xyz);\n\
     output.texCoord = input.texCoord;\n\
     output.color = input.color;\n\
     output.depth.xy = output.position.zw;\n\
@@ -59,6 +65,8 @@ struct sInput\n\
 {\n\
     float4 position:SV_POSITION;\n\
     float3 normal:NORMAL;\n\
+    float3 tangent:TANGENT;\n\
+    float3 binormal:BINORMAL;\n\
     float2 texCoord:TEXCOORD;\n\
     float4 color:COLOR;\n\
     float2 depth:TEXCOORD1;\n\
@@ -78,7 +86,9 @@ sOutput main(sInput input)\n\
     sOutput output;\n\
     output.diffuse = xdiffuse * input.color;\n\
     output.depth = input.depth.x / input.depth.y;\n\
-    output.normal.xyz = input.normal * .5 + .5;\n\
+    xnormal.xyz = xnormal.xyz * 2 - 1;\n\
+    output.normal.xyz = normalize(xnormal.x * input.tangent + xnormal.y * input.binormal + xnormal.z * input.normal);\n\
+    output.normal.xyz = output.normal.xyz * .5 + .5;\n\
     output.normal.a = 0;\n\
     output.material = xmaterial;\n\
     return output;\n\
@@ -126,6 +136,7 @@ float4 main(sInput input):SV_TARGET\n\
 const char *g_psAmbient =
 "\
 Texture2D xDiffuse:register(t0);\n\
+Texture2D xMaterial:register(t3);\n\
 SamplerState sSampler:register(s0);\n\
 struct sInput\n\
 {\n\
@@ -136,7 +147,8 @@ struct sInput\n\
 float4 main(sInput input):SV_TARGET\n\
 {\n\
     float4 xdiffuse = xDiffuse.Sample(sSampler, input.texCoord);\n\
-    return xdiffuse * input.color;\n\
+    float4 xmaterial = xMaterial.Sample(sSampler, input.texCoord);\n\
+    return xdiffuse * input.color + xdiffuse * xmaterial.b;\n\
 }";
 
 const char *g_psOmni =
@@ -169,6 +181,8 @@ float4 main(sInput input):SV_TARGET\n\
     float3 xnormal = xNormal.Sample(sSampler, input.texCoord).xyz;\n\
     float4 xmaterial = xMaterial.Sample(sSampler, input.texCoord);\n\
     \n\
+    float4 finalColor = float4(0, 0, 0, 0);\n\
+    \n\
     // Position\n\
     float4 position;\n\
     position.xy = float2(input.texCoord.x * 2 - 1, -(input.texCoord.y * 2 - 1));\n\
@@ -178,22 +192,27 @@ float4 main(sInput input):SV_TARGET\n\
     position /= position.w;\n\
     \n\
     // Normal\n\
-    float3 normal = xnormal * 2 - 1;\n\
-    float3 dir = lPos - position.xyz; \n\
+    float3 normal = normalize(xnormal * 2 - 1);\n\
+    float3 lightDir = lPos - position.xyz;\n\
     \n\
     // Attenuation stuff\n\
-    float dis = length(dir);\n\
-    dir /= dis;\n\
+    float dis = length(lightDir);\n\
+    lightDir /= dis;\n\
     dis /= lRadius;\n\
     dis = saturate(1 - dis);\n\
     dis = pow(dis, 1);\n\
-    float dotNormal = dot(normal, dir);\n\
+    float dotNormal = dot(normal, lightDir);\n\
     //dotNormal = 1 - (1 - dotNormal) * (1 - dotNormal);\n\
-    float intensity = dis;\n\
     dotNormal = saturate(dotNormal);\n\
-    intensity *= dotNormal;\n\
+    float intensity = dis * dotNormal;\n\
+    finalColor += xdiffuse * lColor * intensity;\n\
     \n\
-    return xdiffuse * lColor * intensity;\n\
+    // Calculate specular\n\
+    float3 v = normalize(float3(-5, -5, 5));\n\
+    float3 h = normalize(lightDir + v);\n\
+    finalColor += xmaterial.r * lColor * intensity * (pow(saturate(dot(normal, h)), xmaterial.g * 100)/*, 0*/);\n\
+    \n\
+    return finalColor;\n\
 }";
 
 #define MAX_VERTEX_COUNT (300 * 2 * 3)
@@ -483,6 +502,8 @@ typedef struct
 {
     float x, y, z;
     float nx, ny, nz;
+    float tx, ty, tz;
+    float bx, by, bz;
     float u, v;
     float r, g, b, a;
 } SEGVertex;
@@ -608,11 +629,11 @@ void resetStates()
         pState->blend.RenderTarget[i].BlendOpAlpha = D3D11_BLEND_OP_ADD;
         pState->blend.RenderTarget[i].RenderTargetWriteMask = D3D10_COLOR_WRITE_ENABLE_ALL;
     }
-    pState->sampler.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+    pState->sampler.Filter = D3D11_FILTER_ANISOTROPIC;
     pState->sampler.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
     pState->sampler.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
     pState->sampler.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
-    pState->sampler.MaxAnisotropy = 1;
+    pState->sampler.MaxAnisotropy = 4;
     pState->sampler.ComparisonFunc = D3D11_COMPARISON_ALWAYS;
     pState->sampler.MaxLOD = D3D11_FLOAT32_MAX;
     pState->blendDirty = TRUE;
@@ -1038,13 +1059,15 @@ EGDevice egCreateDevice(HWND windowHandle)
 
     // Input layout
     {
-        D3D11_INPUT_ELEMENT_DESC layout[4] = {
+        D3D11_INPUT_ELEMENT_DESC layout[6] = {
             {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
             {"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0},
-            {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D11_INPUT_PER_VERTEX_DATA, 0},
-            {"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 32, D3D11_INPUT_PER_VERTEX_DATA, 0}
+            {"TANGENT", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 24, D3D11_INPUT_PER_VERTEX_DATA, 0},
+            {"BINORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 36, D3D11_INPUT_PER_VERTEX_DATA, 0},
+            {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 48, D3D11_INPUT_PER_VERTEX_DATA, 0},
+            {"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 56, D3D11_INPUT_PER_VERTEX_DATA, 0}
         };
-        result = pBoundDevice->pDevice->lpVtbl->CreateInputLayout(pBoundDevice->pDevice, layout, 4, pVSB->lpVtbl->GetBufferPointer(pVSB), pVSB->lpVtbl->GetBufferSize(pVSB), &pBoundDevice->pInputLayout);
+        result = pBoundDevice->pDevice->lpVtbl->CreateInputLayout(pBoundDevice->pDevice, layout, 6, pVSB->lpVtbl->GetBufferPointer(pVSB), pVSB->lpVtbl->GetBufferSize(pVSB), &pBoundDevice->pInputLayout);
         if (result != S_OK)
         {
             sprintf_s(lastError, 256, "Failed CreateInputLayout");
@@ -1055,8 +1078,8 @@ EGDevice egCreateDevice(HWND windowHandle)
     {
         D3D11_INPUT_ELEMENT_DESC layout[3] = {
             {"POSITION", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
-            {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D11_INPUT_PER_VERTEX_DATA, 0},
-            {"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 32, D3D11_INPUT_PER_VERTEX_DATA, 0}
+            {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 48, D3D11_INPUT_PER_VERTEX_DATA, 0},
+            {"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 56, D3D11_INPUT_PER_VERTEX_DATA, 0}
         };
         result = pBoundDevice->pDevice->lpVtbl->CreateInputLayout(pBoundDevice->pDevice, layout, 3, pVSBPassThrough->lpVtbl->GetBufferPointer(pVSBPassThrough), pVSBPassThrough->lpVtbl->GetBufferSize(pVSBPassThrough), &pBoundDevice->pInputLayoutPassThrough);
         if (result != S_OK)
@@ -1689,8 +1712,23 @@ void beginGeometryPass()
     pBoundDevice->pDeviceContext->lpVtbl->PSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pPS, NULL, 0);
 
     // Unbind if it's still bound
-    ID3D11ShaderResourceView *nullResources[3] = {NULL, NULL, NULL};
-    pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 1, 3, nullResources);
+    ID3D11ShaderResourceView *res = NULL;
+    pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 3, 1, &res);
+    pBoundDevice->pDeviceContext->lpVtbl->PSGetShaderResources(pBoundDevice->pDeviceContext, 0, 1, &res);
+    if (res == pBoundDevice->gBuffer[G_DIFFUSE].texture.pResourceView)
+    {
+        pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->pDefaultTextureMaps[DIFFUSE_MAP].pResourceView);
+    }
+    pBoundDevice->pDeviceContext->lpVtbl->PSGetShaderResources(pBoundDevice->pDeviceContext, 1, 1, &res);
+    if (res == pBoundDevice->gBuffer[G_DEPTH].texture.pResourceView)
+    {
+        pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 1, 1, &pBoundDevice->pDefaultTextureMaps[NORMAL_MAP].pResourceView);
+    }
+    pBoundDevice->pDeviceContext->lpVtbl->PSGetShaderResources(pBoundDevice->pDeviceContext, 2, 1, &res);
+    if (res == pBoundDevice->gBuffer[G_NORMAL].texture.pResourceView)
+    {
+        pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 2, 1, &pBoundDevice->pDefaultTextureMaps[MATERIAL_MAP].pResourceView);
+    }
 
     // Bind G-Buffer
     ID3D11RenderTargetView *gBuffer[4] = {
@@ -1712,6 +1750,7 @@ void beginAmbientPass()
     pBoundDevice->pDeviceContext->lpVtbl->IASetPrimitiveTopology(pBoundDevice->pDeviceContext, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
     pBoundDevice->pDeviceContext->lpVtbl->OMSetRenderTargets(pBoundDevice->pDeviceContext, 1, &pBoundDevice->accumulationBuffer.pRenderTargetView, NULL);
     pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->gBuffer[G_DIFFUSE].texture.pResourceView);
+    pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 3, 1, &pBoundDevice->gBuffer[G_MATERIAL].texture.pResourceView);
 
     pBoundDevice->pDeviceContext->lpVtbl->IASetInputLayout(pBoundDevice->pDeviceContext, pBoundDevice->pInputLayoutPassThrough);
     pBoundDevice->pDeviceContext->lpVtbl->VSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pVSPassThrough, NULL, 0);
@@ -1978,6 +2017,30 @@ void egNormalv(const float *pNormal)
     memcpy(&currentVertex.nx, pNormal, 12);
 }
 
+void egTangent(float nx, float ny, float nz)
+{
+    currentVertex.tx = nx;
+    currentVertex.ty = ny;
+    currentVertex.tz = nz;
+}
+
+void egTangentv(const float *pTangent)
+{
+    memcpy(&currentVertex.tx, pTangent, 12);
+}
+
+void egBinormal(float nx, float ny, float nz)
+{
+    currentVertex.bx = nx;
+    currentVertex.by = ny;
+    currentVertex.bz = nz;
+}
+
+void egBinormalv(const float *pBitnormal)
+{
+    memcpy(&currentVertex.bx, pBitnormal, 12);
+}
+
 void egTexCoord(float u, float v)
 {
     currentVertex.u = u;
@@ -2148,10 +2211,10 @@ void egBindNormal(EGTexture texture)
     if (!pBoundDevice) return;
     if (!texture)
     {
-        pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->pDefaultTextureMaps[NORMAL_MAP].pResourceView);
+        pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 1, 1, &pBoundDevice->pDefaultTextureMaps[NORMAL_MAP].pResourceView);
         return;
     }
-    if (texture >= pBoundDevice->textureCount) return;
+    if (texture > pBoundDevice->textureCount) return;
     pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 1, 1, &pBoundDevice->textures[texture - 1].pResourceView);
 }
 
@@ -2160,10 +2223,10 @@ void egBindMaterial(EGTexture texture)
     if (!pBoundDevice) return;
     if (!texture)
     {
-        pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->pDefaultTextureMaps[MATERIAL_MAP].pResourceView);
+        pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 2, 1, &pBoundDevice->pDefaultTextureMaps[MATERIAL_MAP].pResourceView);
         return;
     }
-    if (texture >= pBoundDevice->textureCount) return;
+    if (texture > pBoundDevice->textureCount) return;
     pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 2, 1, &pBoundDevice->textures[texture - 1].pResourceView);
 }
 
@@ -2279,6 +2342,8 @@ void egCube(float size)
     egBegin(EG_QUADS);
 
     egNormal(0, -1, 0);
+    egTangent(1, 0, 0);
+    egBinormal(0, 0, -1);
     egTexCoord(0, 0);
     egPosition3(-hSize, -hSize, hSize);
     egTexCoord(0, 1);
@@ -2289,6 +2354,8 @@ void egCube(float size)
     egPosition3(hSize, -hSize, hSize);
 
     egNormal(1, 0, 0);
+    egTangent(0, 1, 0);
+    egBinormal(0, 0, -1);
     egTexCoord(0, 0);
     egPosition3(hSize, -hSize, hSize);
     egTexCoord(0, 1);
@@ -2299,6 +2366,8 @@ void egCube(float size)
     egPosition3(hSize, hSize, hSize);
 
     egNormal(0, 1, 0);
+    egTangent(-1, 0, 0);
+    egBinormal(0, 0, -1);
     egTexCoord(0, 0);
     egPosition3(hSize, hSize, hSize);
     egTexCoord(0, 1);
@@ -2309,6 +2378,8 @@ void egCube(float size)
     egPosition3(-hSize, hSize, hSize);
 
     egNormal(-1, 0, 0);
+    egTangent(0, -1, 0);
+    egBinormal(0, 0, -1);
     egTexCoord(0, 0);
     egPosition3(-hSize, hSize, hSize);
     egTexCoord(0, 1);
@@ -2319,6 +2390,8 @@ void egCube(float size)
     egPosition3(-hSize, -hSize, hSize);
 
     egNormal(0, 0, 1);
+    egTangent(1, 0, 0);
+    egBinormal(0, -1, 0);
     egTexCoord(0, 0);
     egPosition3(-hSize, hSize, hSize);
     egTexCoord(0, 1);
@@ -2329,6 +2402,8 @@ void egCube(float size)
     egPosition3(hSize, hSize, hSize);
 
     egNormal(0, 0, -1);
+    egTangent(1, 0, 0);
+    egBinormal(0, 1, 0);
     egTexCoord(0, 0);
     egPosition3(-hSize, -hSize, -hSize);
     egTexCoord(0, 1);
@@ -2370,15 +2445,18 @@ void egPostProcess()
     beginPostProcessPass();
 
     float white[4] = {1, 1, 1, 1};
-    pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->gBuffer[G_DIFFUSE].texture.pResourceView);
-    drawScreenQuad(-1, 1, 0, 0, white);
+    //pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->gBuffer[G_DIFFUSE].texture.pResourceView);
+    //drawScreenQuad(-1, 1, 0, 0, white);
 
-    pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->gBuffer[G_DEPTH].texture.pResourceView);
-    drawScreenQuad(0, 1, 1, 0, white);
+    //pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->gBuffer[G_MATERIAL].texture.pResourceView);
+    //drawScreenQuad(0, 1, 1, 0, white);
 
-    pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->gBuffer[G_NORMAL].texture.pResourceView);
-    drawScreenQuad(-1, 0, 0, -1, white);
+    //pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->gBuffer[G_NORMAL].texture.pResourceView);
+    //drawScreenQuad(-1, 0, 0, -1, white);
+
+    //pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->accumulationBuffer.texture.pResourceView);
+    //drawScreenQuad(0, 0, 1, -1, white);
 
     pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->accumulationBuffer.texture.pResourceView);
-    drawScreenQuad(0, 0, 1, -1, white);
+    drawScreenQuad(-1, 1, 1, -1, white);
 }

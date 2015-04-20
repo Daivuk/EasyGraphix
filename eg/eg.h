@@ -162,6 +162,10 @@ extern "C"
     void        egColor4v(const float *pRGBA);
     void        egNormal(float nx, float ny, float nz);
     void        egNormalv(const float *pNormal);
+    void        egTangent(float nx, float ny, float nz);
+    void        egTangentv(const float *pTangent);
+    void        egBinormal(float nx, float ny, float nz);
+    void        egBinormalv(const float *pBitnormal);
     void        egTexCoord(float u, float v);
     void        egTexCoordv(const float *pTexCoord);
     void        egPosition2(float x, float y);
