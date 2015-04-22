@@ -25,7 +25,7 @@ extern "C"
     */
     typedef uint32_t EGTexture;
 
-    /*! \typedef EG_FORMAT
+    /*! \typedef EGFormat
         Representing a mix of EG_DATA_COMPONENT_COUNT and EG_DATA_TYPE
     */
     typedef uint32_t EGFormat;
