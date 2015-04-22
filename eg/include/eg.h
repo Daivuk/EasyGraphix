@@ -1003,24 +1003,47 @@ extern "C"
     void egCube(float size);
 
     /*!
-        Unimplemented
+        Draw a sphere primitive
+
+        \param radius Radius of the sphere
+
+        \slices Side count, horizontal separations
+
+        \stacks Number of vertical separations
+
+        \sfactor Multiplyer to s texture coordinates
     */
     void egSphere(float radius, uint32_t slices, uint32_t stacks, float sfactor);
 
     /*!
-        Unimplemented
+        Draw a cylinder primitive
+
+        \param bottomRadius Radius of the bottom cap
+
+        \param bottomRadius Radius of the top cap
+
+        \height Height of the cylinder
+
+        \slices Side count, horizontal separations
+
+        \sfactor Multiplyer to s texture coordinates
     */
     void egCylinder(float bottomRadius, float topRadius, float height, uint32_t slices, float sfactor);
 
     /*!
-        Unimplemented
+        Draw a tube
+
+        \param outterRadius Radius outside of the tube
+
+        \param innerRadius Radius of the tube's hole
+
+        \height Height of the tube
+
+        \slices Side count, horizontal separations
+
+        \sfactor Multiplyer to s texture coordinates
     */
     void egTube(float outterRadius, float innerRadius, float height, uint32_t slices, float sfactor);
-
-    /*!
-        Unimplemented
-    */
-    void egTorus(float radius, float innerRadius, uint32_t slices, uint32_t stacks, float sfactor);
 
 #ifdef __cplusplus
 }       /* extern "C" */

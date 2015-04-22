@@ -117,7 +117,6 @@ void draw()
         egSphere(1.5f, 24, 12, 4);
 
         egModelTranslate(7, -7, -1.5f);
-        //egCylinder(1.5f, 1.5f, 3, 24, 3);
         egTube(1.5f, 1.0f, 3, 24, 3);
     }
     egModelPop();

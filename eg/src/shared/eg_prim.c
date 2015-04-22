@@ -264,9 +264,3 @@ void egTube(float outterRadius, float innerRadius, float height, uint32_t slices
     }
     egEnd();
 }
-
-void egTorus(float radius, float innerRadius, uint32_t slices, uint32_t stacks, float sfactor)
-{
-    if (slices < 3) return;
-    if (stacks < 3) return;
-}
