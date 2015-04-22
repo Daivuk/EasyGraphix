@@ -1,10 +1,5 @@
 #include <memory.h>
-#include <math.h>
 #include "eg_math.h"
-
-#define PI 3.1415926535897932384626433832795f
-#define TO_RAD(__deg__) (__deg__ * PI / 180.f)
-#define TO_DEG(__rad__) (__rad__ * 180.f / PI)
 
 // Vector math
 void v3normalize(float* v)
@@ -86,9 +81,9 @@ void setScaleMatrix(SEGMatrix *pMatrix, float x, float y, float z)
 
 void setRotationMatrix(SEGMatrix *pMatrix, float xDeg, float yDeg, float zDeg)
 {
-    float xRads = (TO_RAD(xDeg));
-    float yRads = (TO_RAD(yDeg));
-    float zRads = (TO_RAD(zDeg));
+    float xRads = (EG_TO_RAD(xDeg));
+    float yRads = (EG_TO_RAD(yDeg));
+    float zRads = (EG_TO_RAD(zDeg));
 
     SEGMatrix ma, mb, mc;
     float ac = cosf(xRads);
@@ -183,7 +178,7 @@ void setLookAtMatrix(SEGMatrix *pMatrix,
 
 void setProjectionMatrix(SEGMatrix *pMatrix, float fov, float aspect, float nearDist, float farDist)
 {
-    float yScale = 1.0f / tanf(TO_RAD(fov) / 2);
+    float yScale = 1.0f / tanf(EG_TO_RAD(fov) / 2);
     float xScale = yScale / aspect;
     float nearmfar = nearDist - farDist;
     float m[] = {

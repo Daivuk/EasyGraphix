@@ -3,6 +3,12 @@
 #ifndef EG_MATH_H_INCLUDED
 #define EG_MATH_H_INCLUDED
 
+#include <math.h>
+
+#define EG_PI 3.1415926535897932384626433832795f
+#define EG_TO_RAD(__deg__) (__deg__ * EG_PI / 180.f)
+#define EG_TO_DEG(__rad__) (__rad__ * 180.f / EG_PI)
+
 // Vector math
 void v3normalize(float* v);
 void v3cross(float* v1, float* v2, float* out);

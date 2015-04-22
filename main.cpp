@@ -104,12 +104,23 @@ void draw()
     }
     egModelPop();
 
-    egColor3(1, 1, 1);
-    egModelRotate(rotation, 0, 0, 1);
-    egBindDiffuse(diffuse);
-    egBindNormal(normal);
-    egBindMaterial(material);
-    egCube(5);
+    egModelPush();
+    {
+        egColor3(1, 1, 1);
+        egModelRotate(rotation, 0, 0, 1);
+        egBindDiffuse(diffuse);
+        egBindNormal(normal);
+        egBindMaterial(material);
+        egCube(3);
+
+        egModelTranslate(-5, 2, 0);
+        egSphere(1.5f, 24, 12, 4);
+
+        egModelTranslate(7, -7, -1.5f);
+        //egCylinder(1.5f, 1.5f, 3, 24, 3);
+        egTube(1.0f, 1.5f, 3, 24, 3);
+    }
+    egModelPop();
 
     egBegin(EG_AMBIENTS);
     {

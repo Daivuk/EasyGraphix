@@ -1005,22 +1005,22 @@ extern "C"
     /*!
         Unimplemented
     */
-    void egSphere(float radius, uint32_t slices, uint32_t stacks);
+    void egSphere(float radius, uint32_t slices, uint32_t stacks, float sfactor);
 
     /*!
         Unimplemented
     */
-    void egCylinder(float bottomRadius, float topRadius, float height, uint32_t slices);
+    void egCylinder(float bottomRadius, float topRadius, float height, uint32_t slices, float sfactor);
 
     /*!
         Unimplemented
     */
-    void egTube(float outterRadius, float innerRadius, float height, uint32_t slices);
+    void egTube(float outterRadius, float innerRadius, float height, uint32_t slices, float sfactor);
 
     /*!
         Unimplemented
     */
-    void egTorus(float radius, float innerRadius, uint32_t slices, uint32_t stacks);
+    void egTorus(float radius, float innerRadius, uint32_t slices, uint32_t stacks, float sfactor);
 
 #ifdef __cplusplus
 }       /* extern "C" */
