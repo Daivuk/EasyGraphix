@@ -5,6 +5,8 @@ VisualStudioVersion = 12.0.31101.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "EasyGraphix", "EasyGraphix.vcxproj", "{C1DD217B-C640-4884-A7A3-11486D94BC46}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "egdx11", "eg\src\dx11\egdx11.vcxproj", "{0AA82497-CC19-4C6A-99BC-F0027C2F7CCA}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -15,6 +17,10 @@ Global
 		{C1DD217B-C640-4884-A7A3-11486D94BC46}.Debug|Win32.Build.0 = Debug|Win32
 		{C1DD217B-C640-4884-A7A3-11486D94BC46}.Release|Win32.ActiveCfg = Release|Win32
 		{C1DD217B-C640-4884-A7A3-11486D94BC46}.Release|Win32.Build.0 = Release|Win32
+		{0AA82497-CC19-4C6A-99BC-F0027C2F7CCA}.Debug|Win32.ActiveCfg = Debug|Win32
+		{0AA82497-CC19-4C6A-99BC-F0027C2F7CCA}.Debug|Win32.Build.0 = Debug|Win32
+		{0AA82497-CC19-4C6A-99BC-F0027C2F7CCA}.Release|Win32.ActiveCfg = Release|Win32
+		{0AA82497-CC19-4C6A-99BC-F0027C2F7CCA}.Release|Win32.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

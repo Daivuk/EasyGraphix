@@ -2,11 +2,9 @@
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <ClCompile Include="main.cpp" />
-    <ClCompile Include="eg\egdx11.c" />
     <ClCompile Include="LodePNG.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="eg\eg.h" />
     <ClInclude Include="LodePNG.h" />
   </ItemGroup>
 </Project>

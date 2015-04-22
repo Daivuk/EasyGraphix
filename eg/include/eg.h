@@ -1,4 +1,9 @@
-/*! \file eg.h */
+/*! \file eg.h */ 
+
+#pragma once
+
+#ifndef EG_H_INCLUDED
+#define EG_H_INCLUDED
 
 #ifdef WIN32
 #include <Windows.h>
@@ -9,6 +14,7 @@
 extern "C"
 {
 #endif /* __cplusplus */
+
     /*! \typedef EGDevice
         ID to a graphics device
     */
@@ -205,5 +211,7 @@ extern "C"
     void        egTube(float outterRadius, float innerRadius, float height, uint32_t slices);
     void        egTorus(float radius, float innerRadius, uint32_t slices, uint32_t stacks);
 #ifdef __cplusplus
-}
-#endif /* __cplusplus */
+}       /* extern "C" */
+#endif  /* __cplusplus */
+
+#endif  /* EG_H_INCLUDED */
