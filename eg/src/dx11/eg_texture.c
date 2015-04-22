@@ -106,7 +106,7 @@ void texture2DFromData(SEGTexture2D *pOut, const uint8_t* pData, UINT w, UINT h,
     result = pBoundDevice->pDevice->lpVtbl->CreateTexture2D(pBoundDevice->pDevice, &desc, (mipsData) ? mipsData : &data, &pOut->pTexture);
     if (result != S_OK)
     {
-        sprintf_s(lastError, 256, "Failed CreateTexture2D");
+        setError("Failed CreateTexture2D");
         return;
     }
     ID3D11Resource *pResource = NULL;
@@ -115,7 +115,7 @@ void texture2DFromData(SEGTexture2D *pOut, const uint8_t* pData, UINT w, UINT h,
     {
         pOut->pTexture->lpVtbl->Release(pOut->pTexture);
         pOut->pTexture = NULL;
-        sprintf_s(lastError, 256, "Failed QueryInterface ID3D11Texture2D -> IID_ID3D11Resource");
+        setError("Failed QueryInterface ID3D11Texture2D -> IID_ID3D11Resource");
         return;
     }
     result = pBoundDevice->pDevice->lpVtbl->CreateShaderResourceView(pBoundDevice->pDevice, pResource, NULL, &pOut->pResourceView);
@@ -124,7 +124,7 @@ void texture2DFromData(SEGTexture2D *pOut, const uint8_t* pData, UINT w, UINT h,
         pOut->pTexture->lpVtbl->Release(pOut->pTexture);
         pOut->pTexture = NULL;
         pResource->lpVtbl->Release(pResource);
-        sprintf_s(lastError, 256, "Failed CreateShaderResourceView");
+        setError("Failed CreateShaderResourceView");
         return;
     }
     pResource->lpVtbl->Release(pResource);

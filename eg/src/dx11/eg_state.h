@@ -1,3 +1,8 @@
+#pragma once
+
+#ifndef EG_STATE_H_INCLUDED
+#define EG_STATE_H_INCLUDED
+
 #include <d3d11.h>
 
 typedef struct
@@ -11,3 +16,8 @@ typedef struct
     D3D11_SAMPLER_DESC          sampler;
     BOOL                        samplerDirty;
 } SEGState;
+
+void resetState();
+void updateState();
+
+#endif /* EG_STATE_H_INCLUDED */

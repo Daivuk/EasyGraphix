@@ -25,7 +25,7 @@ HRESULT createRenderTarget(SEGRenderTarget2D *pRenderTarget, UINT w, UINT h, DXG
     result = pBoundDevice->pDevice->lpVtbl->CreateTexture2D(pBoundDevice->pDevice, &textureDesc, NULL, &pRenderTarget->texture.pTexture);
     if (result != S_OK)
     {
-        sprintf_s(lastError, 256, "Failed CreateTexture2D");
+        setError("Failed CreateTexture2D");
         return result;
     }
 
@@ -41,7 +41,7 @@ HRESULT createRenderTarget(SEGRenderTarget2D *pRenderTarget, UINT w, UINT h, DXG
     {
         pRenderTarget->texture.pTexture->lpVtbl->Release(pRenderTarget->texture.pTexture);
         pRenderTarget->texture.pTexture = NULL;
-        sprintf_s(lastError, 256, "Failed QueryInterface ID3D11Texture2D -> IID_ID3D11Resource");
+        setError("Failed QueryInterface ID3D11Texture2D -> IID_ID3D11Resource");
         return result;
     }
     result = pBoundDevice->pDevice->lpVtbl->CreateRenderTargetView(pBoundDevice->pDevice, pTextureRes, &renderTargetViewDesc, &pRenderTarget->pRenderTargetView);
@@ -50,7 +50,7 @@ HRESULT createRenderTarget(SEGRenderTarget2D *pRenderTarget, UINT w, UINT h, DXG
         pRenderTarget->texture.pTexture->lpVtbl->Release(pRenderTarget->texture.pTexture);
         pRenderTarget->texture.pTexture = NULL;
         pTextureRes->lpVtbl->Release(pTextureRes);
-        sprintf_s(lastError, 256, "Failed CreateRenderTargetView");
+        setError("Failed CreateRenderTargetView");
         return result;
     }
 
@@ -69,7 +69,7 @@ HRESULT createRenderTarget(SEGRenderTarget2D *pRenderTarget, UINT w, UINT h, DXG
         pRenderTarget->pRenderTargetView->lpVtbl->Release(pRenderTarget->pRenderTargetView);
         pRenderTarget->pRenderTargetView = NULL;
         pTextureRes->lpVtbl->Release(pTextureRes);
-        sprintf_s(lastError, 256, "Failed CreateShaderResourceView");
+        setError("Failed CreateShaderResourceView");
         return result;
     }
     pTextureRes->lpVtbl->Release(pTextureRes);

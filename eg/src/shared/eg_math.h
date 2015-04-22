@@ -1,3 +1,8 @@
+#pragma once
+
+#ifndef EG_MATH_H_INCLUDED
+#define EG_MATH_H_INCLUDED
+
 // Vector math
 void v3normalize(float* v);
 void v3cross(float* v1, float* v2, float* out);
@@ -23,3 +28,5 @@ void setLookAtMatrix(SEGMatrix *pMatrix,
 void setProjectionMatrix(SEGMatrix *pMatrix, float fov, float aspect, float nearDist, float farDist);
 float detMatrix(SEGMatrix *pMatrix);
 void inverseMatrix(SEGMatrix *pMatrix, SEGMatrix *pOut);
+
+#endif /* EG_MATH_H_INCLUDED */

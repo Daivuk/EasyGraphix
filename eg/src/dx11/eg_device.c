@@ -1,6 +1,8 @@
 #include "eg.h"
+#include "eg_batch.h"
 #include "eg_error.h"
 #include "eg_device.h"
+#include "eg_shaders.h"
 
 SEGDevice  *devices = NULL;
 uint32_t    deviceCount = 0;
@@ -8,7 +10,11 @@ SEGDevice  *pBoundDevice = NULL;
 
 EGDevice egCreateDevice(HWND windowHandle)
 {
-    if (pBoundDevice->bIsInBatch) return 0;
+    if (pBoundDevice)
+    {
+        if (pBoundDevice->bIsInBatch) return 0;
+    }
+
     EGDevice                ret = 0;
     DXGI_SWAP_CHAIN_DESC    swapChainDesc;
     HRESULT                 result;
@@ -45,7 +51,7 @@ EGDevice egCreateDevice(HWND windowHandle)
         &pBoundDevice->pDevice, NULL, &pBoundDevice->pDeviceContext);
     if (result != S_OK)
     {
-        sprintf_s(lastError, 256, "Failed D3D11CreateDeviceAndSwapChain");
+        setError("Failed D3D11CreateDeviceAndSwapChain");
         egDestroyDevice(&ret);
         return 0;
     }
@@ -54,21 +60,21 @@ EGDevice egCreateDevice(HWND windowHandle)
     result = pBoundDevice->pSwapChain->lpVtbl->GetBuffer(pBoundDevice->pSwapChain, 0, &IID_ID3D11Texture2D, (void**)&pBackBuffer);
     if (result != S_OK)
     {
-        sprintf_s(lastError, 256, "Failed IDXGISwapChain GetBuffer IID_ID3D11Texture2D");
+        setError("Failed IDXGISwapChain GetBuffer IID_ID3D11Texture2D");
         egDestroyDevice(&ret);
         return 0;
     }
     result = pBoundDevice->pSwapChain->lpVtbl->GetBuffer(pBoundDevice->pSwapChain, 0, &IID_ID3D11Resource, (void**)&pBackBufferRes);
     if (result != S_OK)
     {
-        sprintf_s(lastError, 256, "Failed IDXGISwapChain GetBuffer IID_ID3D11Resource");
+        setError("Failed IDXGISwapChain GetBuffer IID_ID3D11Resource");
         egDestroyDevice(&ret);
         return 0;
     }
     result = pBoundDevice->pDevice->lpVtbl->CreateRenderTargetView(pBoundDevice->pDevice, pBackBufferRes, NULL, &pBoundDevice->pRenderTargetView);
     if (result != S_OK)
     {
-        sprintf_s(lastError, 256, "Failed CreateRenderTargetView");
+        setError("Failed CreateRenderTargetView");
         egDestroyDevice(&ret);
         return 0;
     }
@@ -94,7 +100,7 @@ EGDevice egCreateDevice(HWND windowHandle)
     result = pBoundDevice->pDevice->lpVtbl->CreateTexture2D(pBoundDevice->pDevice, &depthBufferDesc, NULL, &pDepthStencilBuffer);
     if (result != S_OK)
     {
-        sprintf_s(lastError, 256, "Failed DepthStencil CreateTexture2D");
+        setError("Failed DepthStencil CreateTexture2D");
         egDestroyDevice(&ret);
         return 0;
     }
@@ -109,14 +115,14 @@ EGDevice egCreateDevice(HWND windowHandle)
     result = pDepthStencilBuffer->lpVtbl->QueryInterface(pDepthStencilBuffer, &IID_ID3D11Resource, (void**)&pBackBufferRes);
     if (result != S_OK)
     {
-        sprintf_s(lastError, 256, "Failed DepthStencil ID3D11Texture2D QueryInterface IID_ID3D11Resource");
+        setError("Failed DepthStencil ID3D11Texture2D QueryInterface IID_ID3D11Resource");
         egDestroyDevice(&ret);
         return 0;
     }
     result = pBoundDevice->pDevice->lpVtbl->CreateDepthStencilView(pBoundDevice->pDevice, pBackBufferRes, &depthStencilViewDesc, &pBoundDevice->pDepthStencilView);
     if (result != S_OK)
     {
-        sprintf_s(lastError, 256, "Failed CreateDepthStencilView");
+        setError("Failed CreateDepthStencilView");
         egDestroyDevice(&ret);
         return 0;
     }
@@ -133,42 +139,42 @@ EGDevice egCreateDevice(HWND windowHandle)
     result = pBoundDevice->pDevice->lpVtbl->CreateVertexShader(pBoundDevice->pDevice, pVSB->lpVtbl->GetBufferPointer(pVSB), pVSB->lpVtbl->GetBufferSize(pVSB), NULL, &pBoundDevice->pVS);
     if (result != S_OK)
     {
-        sprintf_s(lastError, 256, "Failed CreateVertexShader");
+        setError("Failed CreateVertexShader");
         egDestroyDevice(&ret);
         return 0;
     }
     result = pBoundDevice->pDevice->lpVtbl->CreatePixelShader(pBoundDevice->pDevice, pPSB->lpVtbl->GetBufferPointer(pPSB), pPSB->lpVtbl->GetBufferSize(pPSB), NULL, &pBoundDevice->pPS);
     if (result != S_OK)
     {
-        sprintf_s(lastError, 256, "Failed CreatePixelShader");
+        setError("Failed CreatePixelShader");
         egDestroyDevice(&ret);
         return 0;
     }
     result = pBoundDevice->pDevice->lpVtbl->CreateVertexShader(pBoundDevice->pDevice, pVSBPassThrough->lpVtbl->GetBufferPointer(pVSBPassThrough), pVSBPassThrough->lpVtbl->GetBufferSize(pVSBPassThrough), NULL, &pBoundDevice->pVSPassThrough);
     if (result != S_OK)
     {
-        sprintf_s(lastError, 256, "Failed CreateVertexShader PassThrough");
+        setError("Failed CreateVertexShader PassThrough");
         egDestroyDevice(&ret);
         return 0;
     }
     result = pBoundDevice->pDevice->lpVtbl->CreatePixelShader(pBoundDevice->pDevice, pPSBPassThrough->lpVtbl->GetBufferPointer(pPSBPassThrough), pPSBPassThrough->lpVtbl->GetBufferSize(pPSBPassThrough), NULL, &pBoundDevice->pPSPassThrough);
     if (result != S_OK)
     {
-        sprintf_s(lastError, 256, "Failed CreatePixelShader PassThrough");
+        setError("Failed CreatePixelShader PassThrough");
         egDestroyDevice(&ret);
         return 0;
     }
     result = pBoundDevice->pDevice->lpVtbl->CreatePixelShader(pBoundDevice->pDevice, pPSBAmbient->lpVtbl->GetBufferPointer(pPSBAmbient), pPSBAmbient->lpVtbl->GetBufferSize(pPSBAmbient), NULL, &pBoundDevice->pPSAmbient);
     if (result != S_OK)
     {
-        sprintf_s(lastError, 256, "Failed CreatePixelShader Ambient");
+        setError("Failed CreatePixelShader Ambient");
         egDestroyDevice(&ret);
         return 0;
     }
     result = pBoundDevice->pDevice->lpVtbl->CreatePixelShader(pBoundDevice->pDevice, pPSBOmni->lpVtbl->GetBufferPointer(pPSBOmni), pPSBOmni->lpVtbl->GetBufferSize(pPSBOmni), NULL, &pBoundDevice->pPSOmni);
     if (result != S_OK)
     {
-        sprintf_s(lastError, 256, "Failed CreatePixelShader Ambient");
+        setError("Failed CreatePixelShader Ambient");
         egDestroyDevice(&ret);
         return 0;
     }
@@ -186,7 +192,7 @@ EGDevice egCreateDevice(HWND windowHandle)
         result = pBoundDevice->pDevice->lpVtbl->CreateInputLayout(pBoundDevice->pDevice, layout, 6, pVSB->lpVtbl->GetBufferPointer(pVSB), pVSB->lpVtbl->GetBufferSize(pVSB), &pBoundDevice->pInputLayout);
         if (result != S_OK)
         {
-            sprintf_s(lastError, 256, "Failed CreateInputLayout");
+            setError("Failed CreateInputLayout");
             egDestroyDevice(&ret);
             return 0;
         }
@@ -200,7 +206,7 @@ EGDevice egCreateDevice(HWND windowHandle)
         result = pBoundDevice->pDevice->lpVtbl->CreateInputLayout(pBoundDevice->pDevice, layout, 3, pVSBPassThrough->lpVtbl->GetBufferPointer(pVSBPassThrough), pVSBPassThrough->lpVtbl->GetBufferSize(pVSBPassThrough), &pBoundDevice->pInputLayoutPassThrough);
         if (result != S_OK)
         {
-            sprintf_s(lastError, 256, "Failed CreateInputLayout PassThrough");
+            setError("Failed CreateInputLayout PassThrough");
             egDestroyDevice(&ret);
             return 0;
         }
@@ -212,21 +218,21 @@ EGDevice egCreateDevice(HWND windowHandle)
         result = pBoundDevice->pDevice->lpVtbl->CreateBuffer(pBoundDevice->pDevice, &cbDesc, NULL, &pBoundDevice->pCBViewProj);
         if (result != S_OK)
         {
-            sprintf_s(lastError, 256, "Failed CreateBuffer CBViewProj");
+            setError("Failed CreateBuffer CBViewProj");
             egDestroyDevice(&ret);
             return 0;
         }
         result = pBoundDevice->pDevice->lpVtbl->CreateBuffer(pBoundDevice->pDevice, &cbDesc, NULL, &pBoundDevice->pCBModel);
         if (result != S_OK)
         {
-            sprintf_s(lastError, 256, "Failed CreateBuffer CBModel");
+            setError("Failed CreateBuffer CBModel");
             egDestroyDevice(&ret);
             return 0;
         }
         result = pBoundDevice->pDevice->lpVtbl->CreateBuffer(pBoundDevice->pDevice, &cbDesc, NULL, &pBoundDevice->pCBInvViewProj);
         if (result != S_OK)
         {
-            sprintf_s(lastError, 256, "Failed CreateBuffer CBInvViewProj");
+            setError("Failed CreateBuffer CBInvViewProj");
             egDestroyDevice(&ret);
             return 0;
         }
@@ -236,7 +242,7 @@ EGDevice egCreateDevice(HWND windowHandle)
         result = pBoundDevice->pDevice->lpVtbl->CreateBuffer(pBoundDevice->pDevice, &cbDesc, NULL, &pBoundDevice->pCBOmni);
         if (result != S_OK)
         {
-            sprintf_s(lastError, 256, "Failed CreateBuffer CBInvViewProj");
+            setError("Failed CreateBuffer CBInvViewProj");
             egDestroyDevice(&ret);
             return 0;
         }
@@ -253,14 +259,14 @@ EGDevice egCreateDevice(HWND windowHandle)
     result = pBoundDevice->pDevice->lpVtbl->CreateBuffer(pBoundDevice->pDevice, &vertexBufferDesc, NULL, &pBoundDevice->pVertexBuffer);
     if (result != S_OK)
     {
-        sprintf_s(lastError, 256, "Failed CreateBuffer VertexBuffer");
+        setError("Failed CreateBuffer VertexBuffer");
         egDestroyDevice(&ret);
         return 0;
     }
     result = pBoundDevice->pVertexBuffer->lpVtbl->QueryInterface(pBoundDevice->pVertexBuffer, &IID_ID3D11Resource, &pBoundDevice->pVertexBufferRes);
     if (result != S_OK)
     {
-        sprintf_s(lastError, 256, "Failed VertexBuffer ID3D11Buffer QueryInterface -> IID_ID3D11Resource");
+        setError("Failed VertexBuffer ID3D11Buffer QueryInterface -> IID_ID3D11Resource");
         egDestroyDevice(&ret);
         return 0;
     }
@@ -338,14 +344,14 @@ EGDevice egCreateDevice(HWND windowHandle)
         return 0;
     }
 
-    resetStates();
+    resetState();
     return ret;
 }
 
 void egDestroyDevice(EGDevice *pDeviceID)
 {
-    if (bIsInBatch) return;
     SEGDevice *pDevice = devices + (*pDeviceID - 1);
+    if (pDevice->bIsInBatch) return;
 
     for (uint32_t i = 0; i < pDevice->textureCount; ++i)
     {
@@ -441,4 +447,40 @@ void egBindDevice(EGDevice device)
 {
     if (pBoundDevice->bIsInBatch) return;
     pBoundDevice = devices + (device - 1);
+}
+
+void updateViewProjCB()
+{
+    D3D11_MAPPED_SUBRESOURCE map;
+    ID3D11Resource *pRes = NULL;
+    pBoundDevice->pCBViewProj->lpVtbl->QueryInterface(pBoundDevice->pCBViewProj, &IID_ID3D11Resource, &pRes);
+    pBoundDevice->pDeviceContext->lpVtbl->Map(pBoundDevice->pDeviceContext, pRes, 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
+    memcpy(map.pData, pBoundDevice->viewProjMatrix.m, 64);
+    pBoundDevice->pDeviceContext->lpVtbl->Unmap(pBoundDevice->pDeviceContext, pRes, 0);
+    pRes->lpVtbl->Release(pRes);
+    pBoundDevice->pDeviceContext->lpVtbl->VSSetConstantBuffers(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->pCBViewProj);
+}
+
+void updateInvViewProjCB()
+{
+    D3D11_MAPPED_SUBRESOURCE map;
+    ID3D11Resource *pRes = NULL;
+    pBoundDevice->pCBInvViewProj->lpVtbl->QueryInterface(pBoundDevice->pCBInvViewProj, &IID_ID3D11Resource, &pRes);
+    pBoundDevice->pDeviceContext->lpVtbl->Map(pBoundDevice->pDeviceContext, pRes, 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
+    memcpy(map.pData, pBoundDevice->invViewProjMatrix.m, 64);
+    pBoundDevice->pDeviceContext->lpVtbl->Unmap(pBoundDevice->pDeviceContext, pRes, 0);
+    pRes->lpVtbl->Release(pRes);
+    pBoundDevice->pDeviceContext->lpVtbl->PSSetConstantBuffers(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->pCBInvViewProj);
+}
+
+void updateOmniCB()
+{
+    D3D11_MAPPED_SUBRESOURCE map;
+    ID3D11Resource *pRes = NULL;
+    pBoundDevice->pCBOmni->lpVtbl->QueryInterface(pBoundDevice->pCBOmni, &IID_ID3D11Resource, &pRes);
+    pBoundDevice->pDeviceContext->lpVtbl->Map(pBoundDevice->pDeviceContext, pRes, 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
+    memcpy(map.pData, &pBoundDevice->currentOmni, sizeof(SEGOmni));
+    pBoundDevice->pDeviceContext->lpVtbl->Unmap(pBoundDevice->pDeviceContext, pRes, 0);
+    pRes->lpVtbl->Release(pRes);
+    pBoundDevice->pDeviceContext->lpVtbl->PSSetConstantBuffers(pBoundDevice->pDeviceContext, 1, 1, &pBoundDevice->pCBOmni);
 }

@@ -1,11 +1,21 @@
+#pragma once
+
+#ifndef EG_DEVICE_H_INCLUDED
+#define EG_DEVICE_H_INCLUDED
+
 #include <d3d11.h>
 #include <inttypes.h>
+#include "eg_batch.h"
 #include "eg_math.h"
 #include "eg_pass.h"
 #include "eg_rt.h"
 #include "eg_state.h"
 
-#define MAX_STACK 256
+#define MAX_STACK       256
+
+#define DIFFUSE_MAP     0
+#define NORMAL_MAP      1
+#define MATERIAL_MAP    2
 
 typedef struct
 {
@@ -47,6 +57,17 @@ typedef struct
     EG_PASS                     pass;
     ID3D11Buffer               *pCBOmni;
     BOOL                        bIsInBatch;
+    EG_TOPOLOGY                 currentTopology;
+    SEGVertex                  *pVertex;
+    uint32_t                    currentVertexCount;
+    SEGVertex                   currentVertex;
+    SEGOmni                     currentOmni;
 } SEGDevice;
 
 extern SEGDevice *pBoundDevice;
+
+void updateViewProjCB();
+void updateInvViewProjCB();
+void updateOmniCB();
+
+#endif /* EG_DEVICE_H_INCLUDED*/

@@ -38,6 +38,12 @@
     <ClCompile Include="..\shared\eg_error.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\shared\eg_prim.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="eg_batch.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\eg.h">
@@ -65,6 +71,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\shared\eg_error.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\shared\eg_prim.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="eg_batch.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

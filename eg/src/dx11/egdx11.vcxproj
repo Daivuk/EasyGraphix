@@ -13,7 +13,9 @@
   <ItemGroup>
     <ClCompile Include="..\shared\eg_error.c" />
     <ClCompile Include="..\shared\eg_math.c" />
+    <ClCompile Include="..\shared\eg_prim.c" />
     <ClCompile Include="egdx11.c" />
+    <ClCompile Include="eg_batch.c" />
     <ClCompile Include="eg_device.c" />
     <ClCompile Include="eg_pass.c" />
     <ClCompile Include="eg_rt.c" />
@@ -25,6 +27,8 @@
     <ClInclude Include="..\..\include\eg.h" />
     <ClInclude Include="..\shared\eg_error.h" />
     <ClInclude Include="..\shared\eg_math.h" />
+    <ClInclude Include="..\shared\eg_prim.h" />
+    <ClInclude Include="eg_batch.h" />
     <ClInclude Include="eg_device.h" />
     <ClInclude Include="eg_pass.h" />
     <ClInclude Include="eg_rt.h" />

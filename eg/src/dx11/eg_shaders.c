@@ -1,3 +1,31 @@
+#include <assert.h>
+#include "eg_shaders.h"
+
+ID3DBlob *compileShader(const char *szSource, const char *szProfile)
+{
+    ID3DBlob *shaderBlob = NULL;
+#ifdef _DEBUG
+    ID3DBlob *errorBlob = NULL;
+#endif
+
+    HRESULT result = D3DCompile(szSource, (SIZE_T)strlen(szSource), NULL, NULL, NULL, "main", szProfile,
+                                D3DCOMPILE_ENABLE_STRICTNESS
+#ifdef _DEBUG
+                                | D3DCOMPILE_DEBUG
+#endif
+                                , 0, &shaderBlob, &errorBlob);
+
+#ifdef _DEBUG
+    if (errorBlob)
+    {
+        char *pError = (char*)errorBlob->lpVtbl->GetBufferPointer(errorBlob);
+        assert(FALSE);
+    }
+#endif
+
+    return shaderBlob;
+}
+
 #define MULTILINE(...) #__VA_ARGS__
 
 // Shaders
