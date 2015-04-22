@@ -131,6 +131,25 @@ void egSetViewProj(const float *pView, const float *pProj)
     updateInvViewProjCB();
 }
 
+void egGetView(float *pView)
+{
+    if (!pBoundDevice) return;
+    memcpy(pView, pBoundDevice->viewMatrix.m, sizeof(float) * 16);
+}
+
+void egGetProjection(float *pProjection)
+{
+    if (!pBoundDevice) return;
+    memcpy(pProjection, pBoundDevice->projectionMatrix.m, sizeof(float) * 16);
+}
+
+void egGetModel(float *pModel)
+{
+    if (!pBoundDevice) return;
+    SEGMatrix *pCurrentModel = pBoundDevice->worldMatrices + pBoundDevice->worldMatricesStackCount;
+    memcpy(pModel, pCurrentModel->m, sizeof(float) * 16);
+}
+
 void egViewPort(uint32_t x, uint32_t y, uint32_t width, uint32_t height)
 {
     if (!pBoundDevice) return;
@@ -145,27 +164,16 @@ void egViewPort(uint32_t x, uint32_t y, uint32_t width, uint32_t height)
     pBoundDevice->pDeviceContext->lpVtbl->RSSetViewports(pBoundDevice->pDeviceContext, 1, &d3dViewport);
 }
 
+void egGetViewport(uint32_t *pViewport)
+{
+    if (!pBoundDevice) return;
+    memcpy(pViewport, pBoundDevice->viewPort, sizeof(uint32_t) * 4);
+}
+
 void egScissor(uint32_t x, uint32_t y, uint32_t width, uint32_t height)
 {
     if (!pBoundDevice) return;
     if (pBoundDevice->bIsInBatch) return;
-}
-
-void updateModelCB()
-{
-    SEGMatrix *pModel = pBoundDevice->worldMatrices + pBoundDevice->worldMatricesStackCount;
-    SEGMatrix model;
-    memcpy(&model, pModel, sizeof(SEGMatrix));
-    transposeMatrix(&model);
-
-    D3D11_MAPPED_SUBRESOURCE map;
-    ID3D11Resource *pRes = NULL;
-    pBoundDevice->pCBModel->lpVtbl->QueryInterface(pBoundDevice->pCBModel, &IID_ID3D11Resource, &pRes);
-    pBoundDevice->pDeviceContext->lpVtbl->Map(pBoundDevice->pDeviceContext, pRes, 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
-    memcpy(map.pData, model.m, 64);
-    pBoundDevice->pDeviceContext->lpVtbl->Unmap(pBoundDevice->pDeviceContext, pRes, 0);
-    pRes->lpVtbl->Release(pRes);
-    pBoundDevice->pDeviceContext->lpVtbl->VSSetConstantBuffers(pBoundDevice->pDeviceContext, 1, 1, &pBoundDevice->pCBModel);
 }
 
 void egModelIdentity()
@@ -292,93 +300,6 @@ void egBindMaterial(EGTexture texture)
     }
     if (texture > pBoundDevice->textureCount) return;
     pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 2, 1, &pBoundDevice->textures[texture - 1].pResourceView);
-}
-
-void egEnable(EG_ENABLE stateBits)
-{
-    if (!pBoundDevice) return;
-    SEGState *pState = pBoundDevice->states + pBoundDevice->statesStackCount;
-    SEGState *pPreviousState = pState;
-    if (pBoundDevice->statesStackCount) --pPreviousState;
-    switch (stateBits)
-    {
-        case EG_BLEND:
-            if (pState->blend.RenderTarget->BlendEnable) break;
-            pState->blend.RenderTarget->BlendEnable = TRUE;
-            pState->blendDirty = TRUE;
-            pPreviousState->blendDirty = TRUE;
-            break;
-        case EG_DEPTH_TEST:
-            if (pState->depth.DepthEnable) break;
-            pState->depth.DepthEnable = TRUE;
-            pState->depthDirty = TRUE;
-            pPreviousState->depthDirty = TRUE;
-            break;
-    }
-}
-
-void egDisable(EG_ENABLE stateBits)
-{
-    if (!pBoundDevice) return;
-    SEGState *pState = pBoundDevice->states + pBoundDevice->statesStackCount;
-    SEGState *pPreviousState = pState;
-    if (pBoundDevice->statesStackCount) --pPreviousState;
-    switch (stateBits)
-    {
-        case EG_BLEND:
-            if (!pState->blend.RenderTarget->BlendEnable) break;
-            pState->blend.RenderTarget->BlendEnable = FALSE;
-            pState->blendDirty = TRUE;
-            pPreviousState->blendDirty = TRUE;
-            break;
-        case EG_DEPTH_TEST:
-            if (!pState->depth.DepthEnable) break;
-            pState->depth.DepthEnable = FALSE;
-            pState->depthDirty = TRUE;
-            pPreviousState->depthDirty = TRUE;
-            break;
-    }
-}
-
-D3D11_BLEND blendFactorToDX(EG_BLEND_FACTOR factor)
-{
-    switch (factor)
-    {
-        case EG_ZERO:                   return D3D11_BLEND_ZERO;
-        case EG_ONE:                    return D3D11_BLEND_ONE;
-        case EG_SRC_COLOR:              return D3D11_BLEND_SRC_COLOR;
-        case EG_ONE_MINUS_SRC_COLOR:    return D3D11_BLEND_INV_SRC_COLOR;
-        case EG_DST_COLOR:              return D3D11_BLEND_DEST_COLOR;
-        case EG_ONE_MINUS_DST_COLOR:    return D3D11_BLEND_INV_DEST_COLOR;
-        case EG_SRC_ALPHA:              return D3D11_BLEND_SRC_ALPHA;
-        case EG_ONE_MINUS_SRC_ALPHA:    return D3D11_BLEND_INV_SRC_ALPHA;
-        case EG_DST_ALPHA:              return D3D11_BLEND_DEST_ALPHA;
-        case EG_ONE_MINUS_DST_ALPHA:    return D3D11_BLEND_INV_DEST_ALPHA;
-        case EG_SRC_ALPHA_SATURATE:     return D3D11_BLEND_SRC_ALPHA_SAT;
-    }
-    return D3D11_BLEND_ZERO;
-}
-
-void egBlendFunc(EG_BLEND_FACTOR src, EG_BLEND_FACTOR dst)
-{
-    if (!pBoundDevice) return;
-    SEGState *pState = pBoundDevice->states + pBoundDevice->statesStackCount;
-    SEGState *pPreviousState = pState;
-    if (pBoundDevice->statesStackCount) --pPreviousState;
-    D3D11_BLEND dxSrc = blendFactorToDX(src);
-    D3D11_BLEND dxDst = blendFactorToDX(dst);
-    if (pState->blend.RenderTarget->SrcBlend != dxSrc)
-    {
-        pState->blend.RenderTarget->SrcBlend = dxSrc;
-        pState->blendDirty = TRUE;
-        pPreviousState->blendDirty = TRUE;
-    }
-    if (pState->blend.RenderTarget->DestBlend != dxDst)
-    {
-        pState->blend.RenderTarget->DestBlend = dxDst;
-        pState->blendDirty = TRUE;
-        pPreviousState->blendDirty = TRUE;
-    }
 }
 
 void egPostProcess()

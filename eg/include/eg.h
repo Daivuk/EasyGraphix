@@ -477,6 +477,30 @@ extern "C"
     void egSetViewProj(const float *pView, const float *pProj);
 
     /*!
+        Get the view matrix
+
+        \param pView Pointer to an array of 16 floats that will contain
+        the matrix.
+    */
+    void egGetView(float *pView);
+
+    /*!
+        Get the projection matrix
+
+        \param pProjection Pointer to an array of 16 floats that will contain
+        the matrix.
+    */
+    void egGetProjection(float *pProjection);
+
+    /*!
+        Get the current model matrix
+
+        \param pModel Pointer to an array of 16 floats that will contain
+        the matrix.
+    */
+    void egGetModel(float *pModel);
+
+    /*!
         Sets the viewport.
 
         \param x The lower-left corner of the viewport rectangle, in pixels. 
@@ -494,6 +518,14 @@ extern "C"
         backbuffer.
     */
     void egViewPort(uint32_t x, uint32_t y, uint32_t width, uint32_t height);
+
+    /*!
+        Get the current viewport
+
+        \param pViewport Pointer to an array of 4 uint32_t that will contain
+        the viewport.
+    */
+    void egGetViewport(uint32_t *pViewport);
 
     /*!
         Defines the scissor box.

@@ -148,10 +148,31 @@ EGTexture egCreateTexture1D(uint32_t dimension, const void *pData, EGFormat data
 EGTexture egCreateTexture2D(uint32_t width, uint32_t height, const void *pData, uint32_t dataType, EG_TEXTURE_FLAGS flags)
 {
     if (!pBoundDevice) return 0;
+    if (width == 0 || height == 0) return;
+
     SEGTexture2D texture2D = {0};
-    uint8_t *pConvertedData = (uint8_t *)pData;
+
+    uint8_t *pConvertedData = NULL;
+    if (dataType == EG_U8 | EG_RGBA)
+    {
+        pConvertedData = (uint8_t *)pData;
+    }
+    else
+    {
+        uint32_t size = width * height;
+        pConvertedData = (uint8_t *)malloc(size * 4);
+        for (uint32_t i = 0; i < size; ++i)
+        {
+            pConvertedData[i * 4 + 0]
+        }
+    }
     texture2DFromData(&texture2D, pConvertedData, width, height, flags & EG_GENERATE_MIPMAPS ? TRUE : FALSE);
+    if (dataType != EG_U8 | EG_RGBA)
+    {
+        free(pConvertedData);
+    }
     if (!texture2D.pTexture) return 0;
+
     return createTexture(&texture2D);
 }
 

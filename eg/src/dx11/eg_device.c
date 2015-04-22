@@ -484,3 +484,20 @@ void updateOmniCB()
     pRes->lpVtbl->Release(pRes);
     pBoundDevice->pDeviceContext->lpVtbl->PSSetConstantBuffers(pBoundDevice->pDeviceContext, 1, 1, &pBoundDevice->pCBOmni);
 }
+
+void updateModelCB()
+{
+    SEGMatrix *pModel = pBoundDevice->worldMatrices + pBoundDevice->worldMatricesStackCount;
+    SEGMatrix model;
+    memcpy(&model, pModel, sizeof(SEGMatrix));
+    transposeMatrix(&model);
+
+    D3D11_MAPPED_SUBRESOURCE map;
+    ID3D11Resource *pRes = NULL;
+    pBoundDevice->pCBModel->lpVtbl->QueryInterface(pBoundDevice->pCBModel, &IID_ID3D11Resource, &pRes);
+    pBoundDevice->pDeviceContext->lpVtbl->Map(pBoundDevice->pDeviceContext, pRes, 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
+    memcpy(map.pData, model.m, 64);
+    pBoundDevice->pDeviceContext->lpVtbl->Unmap(pBoundDevice->pDeviceContext, pRes, 0);
+    pRes->lpVtbl->Release(pRes);
+    pBoundDevice->pDeviceContext->lpVtbl->VSSetConstantBuffers(pBoundDevice->pDeviceContext, 1, 1, &pBoundDevice->pCBModel);
+}

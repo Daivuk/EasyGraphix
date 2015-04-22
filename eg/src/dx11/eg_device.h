@@ -19,12 +19,18 @@
 
 typedef struct
 {
+    // Devices
     IDXGISwapChain             *pSwapChain;
     ID3D11Device               *pDevice;
     ID3D11DeviceContext        *pDeviceContext;
+
+    // Render targets
     ID3D11RenderTargetView     *pRenderTargetView;
     ID3D11DepthStencilView     *pDepthStencilView;
     D3D11_TEXTURE2D_DESC        backBufferDesc;
+    SEGRenderTarget2D           gBuffer[4];
+
+    // Shaders
     ID3D11VertexShader         *pVS;
     ID3D11PixelShader          *pPS;
     ID3D11InputLayout          *pInputLayout;
@@ -33,11 +39,16 @@ typedef struct
     ID3D11InputLayout          *pInputLayoutPassThrough;
     ID3D11PixelShader          *pPSAmbient;
     ID3D11PixelShader          *pPSOmni;
+
+    // Constant buffers
     ID3D11Buffer               *pCBViewProj;
     ID3D11Buffer               *pCBModel;
     ID3D11Buffer               *pCBInvViewProj;
+
+    // Batch's dynamic vertex buffer
     ID3D11Buffer               *pVertexBuffer;
     ID3D11Resource             *pVertexBufferRes;
+
     SEGTexture2D               *textures;
     uint32_t                    textureCount;
     SEGTexture2D                pDefaultTextureMaps[3];
@@ -52,7 +63,6 @@ typedef struct
     SEGState                    states[MAX_STACK];
     uint32_t                    statesStackCount;
     float                       clearColor[4];
-    SEGRenderTarget2D           gBuffer[4];
     SEGRenderTarget2D           accumulationBuffer;
     EG_PASS                     pass;
     ID3D11Buffer               *pCBOmni;
@@ -68,6 +78,7 @@ extern SEGDevice *pBoundDevice;
 
 void updateViewProjCB();
 void updateInvViewProjCB();
+void updateModelCB();
 void updateOmniCB();
 
 #endif /* EG_DEVICE_H_INCLUDED*/
