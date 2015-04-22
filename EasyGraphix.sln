@@ -4,6 +4,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 VisualStudioVersion = 12.0.31101.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "EasyGraphix", "EasyGraphix.vcxproj", "{C1DD217B-C640-4884-A7A3-11486D94BC46}"
+	ProjectSection(ProjectDependencies) = postProject
+		{0AA82497-CC19-4C6A-99BC-F0027C2F7CCA} = {0AA82497-CC19-4C6A-99BC-F0027C2F7CCA}
+	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "egdx11", "eg\src\dx11\egdx11.vcxproj", "{0AA82497-CC19-4C6A-99BC-F0027C2F7CCA}"
 EndProject

@@ -69,7 +69,7 @@ void update()
 void draw()
 {
     egClearColor(0, 0, 0, 1);
-    egClear(EG_CLEAR_COLOR | EG_CLEAR_DEPTH_STENCIL);
+    egClear(EG_CLEAR_ALL);
 
     egModelIdentity();
 
@@ -84,20 +84,24 @@ void draw()
     egBindNormal(normalFloor);
     egBindMaterial(materialFloor);
     egModelPush();
-    egModelTranslate(0, 0, -2.5);
-    egTangent(1, 0, 0);
-    egBinormal(0, -1, 0);
-    egNormal(0, 0, 1);
-    egBegin(EG_QUADS);
-    egTexCoord(0, 0);
-    egPosition3(-100, 100, 0);
-    egTexCoord(0, 200 / 5);
-    egPosition3(-100, -100, 0);
-    egTexCoord(200 / 5, 200 / 5);
-    egPosition3(100, -100, 0);
-    egTexCoord(200 / 5, 0);
-    egPosition3(100, 100, 0);
-    egEnd();
+    {
+        egModelTranslate(0, 0, -2.5);
+        egTangent(1, 0, 0);
+        egBinormal(0, -1, 0);
+        egNormal(0, 0, 1);
+        egBegin(EG_QUADS);
+        {
+            egTexCoord(0, 0);
+            egPosition3(-100, 100, 0);
+            egTexCoord(0, 200 / 5);
+            egPosition3(-100, -100, 0);
+            egTexCoord(200 / 5, 200 / 5);
+            egPosition3(100, -100, 0);
+            egTexCoord(200 / 5, 0);
+            egPosition3(100, 100, 0);
+        }
+        egEnd();
+    }
     egModelPop();
 
     egColor3(1, 1, 1);

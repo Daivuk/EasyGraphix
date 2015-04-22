@@ -29,7 +29,7 @@ void drawVertex(SEGVertex *in_pVertex)
 {
     if (!pBoundDevice->bIsInBatch) return;
 
-    if (pBoundDevice->currentTopology == EG_TRIANGLE_FAN)
+    if (pBoundDevice->currentMode == EG_TRIANGLE_FAN)
     {
         if (pBoundDevice->currentVertexCount >= 3)
         {
@@ -37,7 +37,7 @@ void drawVertex(SEGVertex *in_pVertex)
             appendVertex(pBoundDevice->pVertex + pBoundDevice->currentVertexCount - 2);
         }
     }
-    else if (pBoundDevice->currentTopology == EG_QUADS)
+    else if (pBoundDevice->currentMode == EG_QUADS)
     {
         if ((pBoundDevice->currentVertexCount - 3) % 6 == 0 && pBoundDevice->currentVertexCount)
         {
@@ -45,7 +45,7 @@ void drawVertex(SEGVertex *in_pVertex)
             appendVertex(pBoundDevice->pVertex + pBoundDevice->currentVertexCount - 2);
         }
     }
-    else if (pBoundDevice->currentTopology == EG_QUAD_STRIP)
+    else if (pBoundDevice->currentMode == EG_QUAD_STRIP)
     {
         if (pBoundDevice->currentVertexCount == 3)
         {
@@ -71,13 +71,13 @@ void drawVertex(SEGVertex *in_pVertex)
     if (pBoundDevice->currentVertexCount == MAX_VERTEX_COUNT) flush();
 }
 
-void egBegin(EG_TOPOLOGY topology)
+void egBegin(EG_MODE mode)
 {
     if (pBoundDevice->bIsInBatch) return;
     if (!pBoundDevice) return;
     bMapVB = TRUE;
-    pBoundDevice->currentTopology = topology;
-    switch (pBoundDevice->currentTopology)
+    pBoundDevice->currentMode = mode;
+    switch (pBoundDevice->currentMode)
     {
         case EG_POINTS:
             beginGeometryPass();
@@ -139,7 +139,7 @@ void flush()
     if (!pBoundDevice) return;
     if (!pBoundDevice->currentVertexCount) return;
 
-    switch (pBoundDevice->currentTopology)
+    switch (pBoundDevice->currentMode)
     {
         case EG_LINE_LOOP:
             drawVertex(pBoundDevice->pVertex);
@@ -182,7 +182,7 @@ void egColor3(float r, float g, float b)
     pBoundDevice->currentVertex.g = g;
     pBoundDevice->currentVertex.b = b;
     pBoundDevice->currentVertex.a = 1.f;
-    if (pBoundDevice->currentTopology == EG_AMBIENTS)
+    if (pBoundDevice->currentMode == EG_AMBIENTS)
     {
         drawAmbient();
     }
@@ -192,7 +192,7 @@ void egColor3v(const float *pRGB)
 {
     memcpy(&pBoundDevice->currentVertex.r, pRGB, 12);
     pBoundDevice->currentVertex.a = 1.f;
-    if (pBoundDevice->currentTopology == EG_AMBIENTS)
+    if (pBoundDevice->currentMode == EG_AMBIENTS)
     {
         drawAmbient();
     }
@@ -204,7 +204,7 @@ void egColor4(float r, float g, float b, float a)
     pBoundDevice->currentVertex.g = g;
     pBoundDevice->currentVertex.b = b;
     pBoundDevice->currentVertex.a = a;
-    if (pBoundDevice->currentTopology == EG_AMBIENTS)
+    if (pBoundDevice->currentMode == EG_AMBIENTS)
     {
         drawAmbient();
     }
@@ -213,7 +213,7 @@ void egColor4(float r, float g, float b, float a)
 void egColor4v(const float *pRGBA)
 {
     memcpy(&pBoundDevice->currentVertex.r, pRGBA, 16);
-    if (pBoundDevice->currentTopology == EG_AMBIENTS)
+    if (pBoundDevice->currentMode == EG_AMBIENTS)
     {
         drawAmbient();
     }
@@ -272,7 +272,7 @@ void egPosition2(float x, float y)
     pBoundDevice->currentVertex.x = x;
     pBoundDevice->currentVertex.y = y;
     pBoundDevice->currentVertex.z = 0.f;
-    if (pBoundDevice->currentTopology == EG_OMNIS)
+    if (pBoundDevice->currentMode == EG_OMNIS)
     {
         drawOmni();
     }
@@ -287,7 +287,7 @@ void egPosition2v(const float *pPos)
     if (!pBoundDevice->bIsInBatch) return;
     memcpy(&pBoundDevice->currentVertex.x, pPos, 8);
     pBoundDevice->currentVertex.z = 0.f;
-    if (pBoundDevice->currentTopology == EG_OMNIS)
+    if (pBoundDevice->currentMode == EG_OMNIS)
     {
         drawOmni();
     }
@@ -303,7 +303,7 @@ void egPosition3(float x, float y, float z)
     pBoundDevice->currentVertex.x = x;
     pBoundDevice->currentVertex.y = y;
     pBoundDevice->currentVertex.z = z;
-    if (pBoundDevice->currentTopology == EG_OMNIS)
+    if (pBoundDevice->currentMode == EG_OMNIS)
     {
         drawOmni();
     }
@@ -317,7 +317,7 @@ void egPosition3v(const float *pPos)
 {
     if (!pBoundDevice->bIsInBatch) return;
     memcpy(&pBoundDevice->currentVertex.x, pPos, 12);
-    if (pBoundDevice->currentTopology == EG_OMNIS)
+    if (pBoundDevice->currentMode == EG_OMNIS)
     {
         drawOmni();
     }

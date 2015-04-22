@@ -57,7 +57,7 @@ typedef struct
     EG_PASS                     pass;
     ID3D11Buffer               *pCBOmni;
     BOOL                        bIsInBatch;
-    EG_TOPOLOGY                 currentTopology;
+    EG_MODE                     currentMode;
     SEGVertex                  *pVertex;
     uint32_t                    currentVertexCount;
     SEGVertex                   currentVertex;

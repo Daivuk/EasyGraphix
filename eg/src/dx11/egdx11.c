@@ -27,29 +27,35 @@ void egClearColor(float r, float g, float b, float a)
 
 void egClear(uint32_t clearBitFields)
 {
-    if (pBoundDevice->bIsInBatch) return;
     if (!pBoundDevice) return;
+    if (pBoundDevice->bIsInBatch) return;
     if (clearBitFields & EG_CLEAR_COLOR)
     {
         pBoundDevice->pDeviceContext->lpVtbl->ClearRenderTargetView(pBoundDevice->pDeviceContext, pBoundDevice->accumulationBuffer.pRenderTargetView, pBoundDevice->clearColor);
-        pBoundDevice->pDeviceContext->lpVtbl->ClearRenderTargetView(pBoundDevice->pDeviceContext, pBoundDevice->gBuffer[G_DIFFUSE].pRenderTargetView, pBoundDevice->clearColor);
-        float black[4] = {0, 0, 0, 1};
-        pBoundDevice->pDeviceContext->lpVtbl->ClearRenderTargetView(pBoundDevice->pDeviceContext, pBoundDevice->gBuffer[G_NORMAL].pRenderTargetView, black);
-        pBoundDevice->pDeviceContext->lpVtbl->ClearRenderTargetView(pBoundDevice->pDeviceContext, pBoundDevice->gBuffer[G_MATERIAL].pRenderTargetView, black);
     }
     if (clearBitFields & EG_CLEAR_DEPTH_STENCIL)
     {
         pBoundDevice->pDeviceContext->lpVtbl->ClearDepthStencilView(pBoundDevice->pDeviceContext, pBoundDevice->pDepthStencilView, 
                                                                     D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
+    }
+    if (clearBitFields & (EG_CLEAR_COLOR | EG_CLEAR_G_BUFFER))
+    {
+        pBoundDevice->pDeviceContext->lpVtbl->ClearRenderTargetView(pBoundDevice->pDeviceContext, pBoundDevice->gBuffer[G_DIFFUSE].pRenderTargetView, pBoundDevice->clearColor);
+    }
+    if (clearBitFields & EG_CLEAR_G_BUFFER)
+    {
+        float black[4] = {0, 0, 0, 1};
         float zeroDepth[4] = {0, 0, 0, 0};
+        pBoundDevice->pDeviceContext->lpVtbl->ClearRenderTargetView(pBoundDevice->pDeviceContext, pBoundDevice->gBuffer[G_NORMAL].pRenderTargetView, black);
+        pBoundDevice->pDeviceContext->lpVtbl->ClearRenderTargetView(pBoundDevice->pDeviceContext, pBoundDevice->gBuffer[G_MATERIAL].pRenderTargetView, black);
         pBoundDevice->pDeviceContext->lpVtbl->ClearRenderTargetView(pBoundDevice->pDeviceContext, pBoundDevice->gBuffer[G_DEPTH].pRenderTargetView, zeroDepth);
     }
 }
 
 void egSet2DViewProj(float nearClip, float farClip)
 {
-    if (pBoundDevice->bIsInBatch) return;
     if (!pBoundDevice) return;
+    if (pBoundDevice->bIsInBatch) return;
 
     // viewProj2D matrix
     pBoundDevice->projectionMatrix.m[0] = 2.f / (float)pBoundDevice->viewPort[2];
@@ -87,8 +93,8 @@ void egSet2DViewProj(float nearClip, float farClip)
 
 void egSet3DViewProj(float eyeX, float eyeY, float eyeZ, float centerX, float centerY, float centerZ, float upX, float upY, float upZ, float fov, float nearClip, float farClip)
 {
-    if (pBoundDevice->bIsInBatch) return;
     if (!pBoundDevice) return;
+    if (pBoundDevice->bIsInBatch) return;
 
     // Projection
     float aspect = (float)pBoundDevice->backBufferDesc.Width / (float)pBoundDevice->backBufferDesc.Height;
@@ -109,8 +115,8 @@ void egSet3DViewProj(float eyeX, float eyeY, float eyeZ, float centerX, float ce
 
 void egSetViewProj(const float *pView, const float *pProj)
 {
-    if (pBoundDevice->bIsInBatch) return;
     if (!pBoundDevice) return;
+    if (pBoundDevice->bIsInBatch) return;
 
     memcpy(&pBoundDevice->viewMatrix, pView, sizeof(SEGMatrix));
     memcpy(&pBoundDevice->projectionMatrix, pProj, sizeof(SEGMatrix));
@@ -127,8 +133,8 @@ void egSetViewProj(const float *pView, const float *pProj)
 
 void egViewPort(uint32_t x, uint32_t y, uint32_t width, uint32_t height)
 {
-    if (pBoundDevice->bIsInBatch) return;
     if (!pBoundDevice) return;
+    if (pBoundDevice->bIsInBatch) return;
 
     pBoundDevice->viewPort[0] = x;
     pBoundDevice->viewPort[1] = y;
@@ -141,6 +147,7 @@ void egViewPort(uint32_t x, uint32_t y, uint32_t width, uint32_t height)
 
 void egScissor(uint32_t x, uint32_t y, uint32_t width, uint32_t height)
 {
+    if (!pBoundDevice) return;
     if (pBoundDevice->bIsInBatch) return;
 }
 
@@ -287,7 +294,7 @@ void egBindMaterial(EGTexture texture)
     pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 2, 1, &pBoundDevice->textures[texture - 1].pResourceView);
 }
 
-void egEnable(EG_ENABLE_BITS stateBits)
+void egEnable(EG_ENABLE stateBits)
 {
     if (!pBoundDevice) return;
     SEGState *pState = pBoundDevice->states + pBoundDevice->statesStackCount;
@@ -310,7 +317,7 @@ void egEnable(EG_ENABLE_BITS stateBits)
     }
 }
 
-void egDisable(EG_ENABLE_BITS stateBits)
+void egDisable(EG_ENABLE stateBits)
 {
     if (!pBoundDevice) return;
     SEGState *pState = pBoundDevice->states + pBoundDevice->statesStackCount;

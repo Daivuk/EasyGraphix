@@ -140,7 +140,7 @@ EGTexture createTexture(SEGTexture2D *pTexture)
     return ++pBoundDevice->textureCount;
 }
 
-EGTexture egCreateTexture1D(uint32_t dimension, const void *pData, EG_FORMAT dataFormat)
+EGTexture egCreateTexture1D(uint32_t dimension, const void *pData, EGFormat dataFormat)
 {
     return 0;
 }
@@ -160,7 +160,7 @@ EGTexture egCreateTexture3D(uint32_t width, uint32_t height, uint32_t depth, con
     return 0;
 }
 
-EGTexture egCreateCubeMap(uint32_t dimension, const void *pData, EG_FORMAT dataFormat, EG_TEXTURE_FLAGS flags)
+EGTexture egCreateCubeMap(uint32_t dimension, const void *pData, EGFormat dataFormat, EG_TEXTURE_FLAGS flags)
 {
     return 0;
 }
