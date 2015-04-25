@@ -385,7 +385,6 @@ void egDisable(EG_ENABLE stateBits)
 }
 
 //--- New features
-//EG_GENERATE_TANGENT_BINORMAL = 0x00000040,
 //EG_SHADOW = 0x00000800,
 
 //--- Post process
