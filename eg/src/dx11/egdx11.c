@@ -174,6 +174,8 @@ void egScissor(uint32_t x, uint32_t y, uint32_t width, uint32_t height)
 {
     if (!pBoundDevice) return;
     if (pBoundDevice->bIsInBatch) return;
+    D3D11_RECT rect = {x, y, x + width, y + height};
+    pBoundDevice->pDeviceContext->lpVtbl->RSSetScissorRects(pBoundDevice->pDeviceContext, 1, &rect);
 }
 
 void egModelIdentity()

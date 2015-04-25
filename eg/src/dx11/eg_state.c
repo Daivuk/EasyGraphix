@@ -201,6 +201,12 @@ void egEnable(EG_ENABLE stateBits)
             pState->rasterizerDirty = TRUE;
             pPreviousState->rasterizerDirty = TRUE;
             break;
+        case EG_SCISSOR:
+            if (pState->rasterizer.ScissorEnable) break;
+            pState->rasterizer.ScissorEnable = TRUE;
+            pState->rasterizerDirty = TRUE;
+            pPreviousState->rasterizerDirty = TRUE;
+            break;
     }
 }
 
@@ -227,6 +233,12 @@ void egDisable(EG_ENABLE stateBits)
         case EG_CULL:
             if (pState->rasterizer.CullMode == D3D11_CULL_NONE) break;
             pState->rasterizer.CullMode = D3D11_CULL_NONE;
+            pState->rasterizerDirty = TRUE;
+            pPreviousState->rasterizerDirty = TRUE;
+            break;
+        case EG_SCISSOR:
+            if (!pState->rasterizer.ScissorEnable) break;
+            pState->rasterizer.ScissorEnable = FALSE;
             pState->rasterizerDirty = TRUE;
             pPreviousState->rasterizerDirty = TRUE;
             break;
