@@ -919,7 +919,7 @@ extern "C"
         \return The texture ID or 0 if failed.
     */
     EGTexture egCreateTexture2D(uint32_t width, uint32_t height, 
-                                const void *pData, EGFormat dataType, 
+                                const void *pData, EGFormat dataFormat,
                                 EG_TEXTURE_FLAGS flags);
 
     /*!
@@ -929,7 +929,7 @@ extern "C"
     */
     EGTexture egCreateTexture3D(uint32_t width, uint32_t height, 
                                 uint32_t depth, 
-                                const void *pData, EGFormat dataType);
+                                const void *pData, EGFormat dataFormat);
 
     /*!
         Unimplemented

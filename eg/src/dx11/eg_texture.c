@@ -140,20 +140,65 @@ EGTexture createTexture(SEGTexture2D *pTexture)
     return ++pBoundDevice->textureCount;
 }
 
+uint8_t colorFromDataFormat(EGFormat dataFormat, const void *pData, uint32_t pos)
+{
+    if (dataFormat & EG_U8)
+    {
+        return *((uint8_t *)pData + pos);
+    }
+    else if (dataFormat & EG_U16)
+    {
+        return (uint8_t)((*((uint16_t *)pData + pos) >> 8) & 0xffffffff);
+    }
+    else if (dataFormat & EG_U32)
+    {
+        return (uint8_t)((*((uint32_t *)pData + pos) >> 24) & 0xffffffff);
+    }
+    else if (dataFormat & EG_U64)
+    {
+        return (uint8_t)((*((uint64_t *)pData + pos) >> 56) & 0xffffffff);
+    }
+    else if (dataFormat & EG_S8)
+    {
+        return (uint8_t)(*((int8_t *)pData + pos)) + INT8_MAX + 1;
+    }
+    else if (dataFormat & EG_S16)
+    {
+        return (uint8_t)((((uint16_t)(*((int16_t *)pData + pos)) + INT16_MAX + 1) >> 8) & 0xffffffff);
+    }
+    else if (dataFormat & EG_S32)
+    {
+        return (uint8_t)((((uint32_t)(*((int32_t *)pData + pos)) + INT32_MAX + 1) >> 24) & 0xffffffff);
+    }
+    else if (dataFormat & EG_S64)
+    {
+        return (uint8_t)((((uint64_t)(*((int64_t *)pData + pos)) + INT64_MAX + 1) >> 56) & 0xffffffff);
+    }
+    else if (dataFormat & EG_F32)
+    {
+        return (uint8_t)((*((float *)pData + pos)) * 255.f);
+    }
+    else if (dataFormat & EG_F64)
+    {
+        return (uint8_t)((*((double *)pData + pos)) * 255.0);
+    }
+    return 255;
+}
+
 EGTexture egCreateTexture1D(uint32_t dimension, const void *pData, EGFormat dataFormat)
 {
     return 0;
 }
 
-EGTexture egCreateTexture2D(uint32_t width, uint32_t height, const void *pData, uint32_t dataType, EG_TEXTURE_FLAGS flags)
+EGTexture egCreateTexture2D(uint32_t width, uint32_t height, const void *pData, EGFormat dataFormat, EG_TEXTURE_FLAGS flags)
 {
     if (!pBoundDevice) return 0;
-    if (width == 0 || height == 0) return;
+    if (width == 0 || height == 0) return 0;
 
     SEGTexture2D texture2D = {0};
 
     uint8_t *pConvertedData = NULL;
-    if (dataType == EG_U8 | EG_RGBA)
+    if (dataFormat == (EG_U8 | EG_RGBA))
     {
         pConvertedData = (uint8_t *)pData;
     }
@@ -163,11 +208,38 @@ EGTexture egCreateTexture2D(uint32_t width, uint32_t height, const void *pData, 
         pConvertedData = (uint8_t *)malloc(size * 4);
         for (uint32_t i = 0; i < size; ++i)
         {
-            pConvertedData[i * 4 + 0]
+            if (dataFormat & EG_R)
+            {
+                pConvertedData[i * 4 + 0] = colorFromDataFormat(dataFormat, pData, i);
+                pConvertedData[i * 4 + 1] = 0;
+                pConvertedData[i * 4 + 2] = 0;
+                pConvertedData[i * 4 + 3] = 255;
+            }
+            else if (dataFormat & EG_RG)
+            {
+                pConvertedData[i * 4 + 0] = colorFromDataFormat(dataFormat, pData, i * 2 + 0);
+                pConvertedData[i * 4 + 1] = colorFromDataFormat(dataFormat, pData, i * 2 + 1);
+                pConvertedData[i * 4 + 2] = 0;
+                pConvertedData[i * 4 + 3] = 255;
+            }
+            else if (dataFormat & EG_RGB)
+            {
+                pConvertedData[i * 4 + 0] = colorFromDataFormat(dataFormat, pData, i * 3 + 0);
+                pConvertedData[i * 4 + 1] = colorFromDataFormat(dataFormat, pData, i * 3 + 1);
+                pConvertedData[i * 4 + 2] = colorFromDataFormat(dataFormat, pData, i * 3 + 2);
+                pConvertedData[i * 4 + 3] = 255;
+            }
+            else if (dataFormat & EG_RGBA)
+            {
+                pConvertedData[i * 4 + 0] = colorFromDataFormat(dataFormat, pData, i * 4 + 0);
+                pConvertedData[i * 4 + 1] = colorFromDataFormat(dataFormat, pData, i * 4 + 1);
+                pConvertedData[i * 4 + 2] = colorFromDataFormat(dataFormat, pData, i * 4 + 2);
+                pConvertedData[i * 4 + 3] = colorFromDataFormat(dataFormat, pData, i * 4 + 3);
+            }
         }
     }
-    texture2DFromData(&texture2D, pConvertedData, width, height, flags & EG_GENERATE_MIPMAPS ? TRUE : FALSE);
-    if (dataType != EG_U8 | EG_RGBA)
+    texture2DFromData(&texture2D, pConvertedData, width, height, (flags & EG_GENERATE_MIPMAPS) ? TRUE : FALSE);
+    if (dataFormat != (EG_U8 | EG_RGBA))
     {
         free(pConvertedData);
     }
@@ -176,7 +248,7 @@ EGTexture egCreateTexture2D(uint32_t width, uint32_t height, const void *pData, 
     return createTexture(&texture2D);
 }
 
-EGTexture egCreateTexture3D(uint32_t width, uint32_t height, uint32_t depth, const void *pData, uint32_t dataType)
+EGTexture egCreateTexture3D(uint32_t width, uint32_t height, uint32_t depth, const void *pData, EGFormat dataFormat)
 {
     return 0;
 }
