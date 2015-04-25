@@ -331,6 +331,82 @@ extern "C"
 
     } EG_FRONT_FACE;
 
+    /*! \enum EG_FILTER
+        Filtering options during texture sampling.
+    */
+    typedef enum
+    {
+        /*! Use point sampling for minification, magnification, and mip-level 
+        sampling */
+        EG_FILTER_MIN_MAG_MIP_POINT = 0x00,
+
+        /*! Use point sampling for minification and magnification; use linear 
+        interpolation for mip-level sampling. */
+        Eg_FILTER_MIN_MAG_POINT_MIP_LINEAR = 0x01,
+
+        /*! Use point sampling for minification; use linear interpolation for 
+        magnification; use point sampling for mip-level sampling. */
+        EG_FILTER_MIN_POINT_MAG_LINEAR_MIP_POINT = 0x04,
+
+        /*! Use point sampling for minification; use linear interpolation for 
+        magnification and mip-level sampling. */
+        EG_FILTER_MIN_POINT_MAG_MIP_LINEAR = 0x05,
+
+        /*! Use linear interpolation for minification; use point sampling for 
+        magnification and mip-level sampling. */
+        EG_FILTER_MIN_LINEAR_MAG_MIP_POINT = 0x10,
+
+        /*! Use linear interpolation for minification; use point sampling for 
+        magnification; use linear interpolation for mip-level sampling. */
+        EG_FILTER_MIN_LINEAR_MAG_POINT_MIP_LINEAR = 0x11,
+
+        /*! Use linear interpolation for minification and magnification; use 
+        point sampling for mip-level sampling. */
+        EG_FILTER_MIN_MAG_LINEAR_MIP_POINT = 0x14,
+
+        /*! Use linear interpolation for minification, magnification, and 
+        mip-level sampling. */
+        EG_FILTER_MIN_MAG_MIP_LINEAR = 0x15,
+
+        /*! Use point sampling for minification, magnification, and mip-level
+        sampling */
+        EG_FILTER_NEAREST = EG_FILTER_MIN_MAG_MIP_POINT,
+
+        /*! Use point sampling for minification; use linear interpolation for 
+        magnification; use point sampling for mip-level sampling. */
+        EG_FILTER_LINEAR = EG_FILTER_MIN_POINT_MAG_LINEAR_MIP_POINT,
+
+        /*! Use linear interpolation for minification and magnification; use 
+        point sampling for mip-level sampling. */
+        EG_FILTER_BILINEAR = EG_FILTER_MIN_MAG_LINEAR_MIP_POINT,
+
+        /*! Use linear interpolation for minification, magnification, and 
+        mip-level sampling. */
+        EG_FILTER_TRILINEAR = EG_FILTER_MIN_MAG_MIP_LINEAR,
+
+        /*! Use 1x anisotropic interpolation for minification, magnification, 
+        and mip-level sampling. */
+        EG_FILTER_ANISOTROPIC_1X = 0x0155,
+
+        /*! Use 2x anisotropic interpolation for minification, magnification, 
+        and mip-level sampling. */
+        EG_FILTER_ANISOTROPIC_2X = 0x0255,
+
+        /*! Use 4x anisotropic interpolation for minification, magnification, 
+        and mip-level sampling. */
+        EG_FILTER_ANISOTROPIC_4X = 0x0455,
+
+        /*! Use 8x anisotropic interpolation for minification, magnification, 
+        and mip-level sampling. */
+        EG_FILTER_ANISOTROPIC_8X = 0x0855,
+
+        /*! Use 16x anisotropic interpolation for minification, magnification,
+        and mip-level sampling. */
+        EG_FILTER_ANISOTROPIC_16X = 0x1055,
+
+    } EG_FILTER;
+
+
     /*!
         Return zero terminated string describing the last error.
     */
@@ -1041,7 +1117,7 @@ extern "C"
     void egBlendFunc(EG_BLEND_FACTOR sfactor, EG_BLEND_FACTOR dfactor);
 
     /*!
-        Define front- and back-facing polygons
+        Define front- and back-facing polygons. Default is Counter clockwise.
 
         \param mode Specifies the orientation of front-facing polygons. EG_CW 
         and EG_CCW are accepted. The initial value is EG_CCW.
@@ -1097,6 +1173,13 @@ extern "C"
         \sfactor Multiplyer to s texture coordinates
     */
     void egTube(float outterRadius, float innerRadius, float height, uint32_t slices, float sfactor);
+
+    /*!
+        Set texture filtering mode. Default is 4x Anysotropic.
+
+        \param filter Filter mode
+    */
+    void egFilter(EG_FILTER filter);
 
 #ifdef __cplusplus
 }       /* extern "C" */

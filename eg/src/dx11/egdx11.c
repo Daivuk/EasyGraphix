@@ -325,4 +325,7 @@ void egPostProcess()
 
     pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->accumulationBuffer.texture.pResourceView);
     drawScreenQuad(-1, 1, 1, -1, white);
+
+    //pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->gBuffer[G_DIFFUSE].texture.pResourceView);
+    //drawScreenQuad(-1, 1, 1, -1, white);
 }

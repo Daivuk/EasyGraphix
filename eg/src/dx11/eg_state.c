@@ -40,9 +40,11 @@ void resetState()
     pState->depth.BackFace.StencilDepthFailOp = D3D11_STENCIL_OP_KEEP;
     pState->depth.BackFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
     pState->depth.BackFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
+
     pState->rasterizer.FillMode = D3D11_FILL_SOLID;
     pState->rasterizer.CullMode = D3D11_CULL_NONE;
     pState->rasterizer.FrontCounterClockwise = TRUE;
+
     for (int i = 0; i < 8; ++i)
     {
         pState->blend.RenderTarget[i].BlendEnable = FALSE;
@@ -54,6 +56,7 @@ void resetState()
         pState->blend.RenderTarget[i].BlendOpAlpha = D3D11_BLEND_OP_ADD;
         pState->blend.RenderTarget[i].RenderTargetWriteMask = D3D10_COLOR_WRITE_ENABLE_ALL;
     }
+
     pState->sampler.Filter = D3D11_FILTER_ANISOTROPIC;
     pState->sampler.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
     pState->sampler.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
@@ -61,6 +64,7 @@ void resetState()
     pState->sampler.MaxAnisotropy = 4;
     pState->sampler.ComparisonFunc = D3D11_COMPARISON_ALWAYS;
     pState->sampler.MaxLOD = D3D11_FLOAT32_MAX;
+
     pState->blendDirty = TRUE;
     pState->depthDirty = TRUE;
     pState->rasterizerDirty = TRUE;
@@ -172,6 +176,33 @@ void egFrontFace(EG_FRONT_FACE mode)
         pState->rasterizer.FrontCounterClockwise = (BOOL)mode;
         pState->rasterizerDirty = TRUE;
         pPreviousState->rasterizerDirty = TRUE;
+    }
+}
+
+void egFilter(EG_FILTER filter)
+{
+    if (!pBoundDevice) return;
+    SEGState *pState = pBoundDevice->states + pBoundDevice->statesStackCount;
+    SEGState *pPreviousState = pState;
+    if (pBoundDevice->statesStackCount) --pPreviousState;
+    if ((filter & 0xff) == D3D11_FILTER_ANISOTROPIC)
+    {
+        UINT maxAnisotropy = (filter >> 8) & 0xff;
+        if (pState->sampler.Filter != D3D11_FILTER_ANISOTROPIC ||
+            pState->sampler.MaxAnisotropy != maxAnisotropy)
+        {
+            pState->sampler.Filter = (filter & 0xff);
+            pState->sampler.MaxAnisotropy = maxAnisotropy;
+            pState->samplerDirty = TRUE;
+            pPreviousState->samplerDirty = TRUE;
+        }
+    }
+    else if ((filter & 0xff) != pState->sampler.Filter)
+    {
+        pState->sampler.Filter = (filter & 0xff);
+        pState->sampler.MaxAnisotropy = 1; // We don't care, but in case
+        pState->samplerDirty = TRUE;
+        pPreviousState->samplerDirty = TRUE;
     }
 }
 
