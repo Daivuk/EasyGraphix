@@ -28,6 +28,9 @@ typedef struct
     EG_COMPARE                  alphaTestFunc;
     float                       alphaTestRef[4];
     BOOL                        alphaTestDirty;
+
+    // Tangent and Binormals
+    BOOL                        bGenerateTangentBinormal;
 } SEGState;
 
 void resetState();

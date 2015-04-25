@@ -1179,7 +1179,8 @@ extern "C"
 
         \sfactor Multiplyer to s texture coordinates
     */
-    void egSphere(float radius, uint32_t slices, uint32_t stacks, float sfactor);
+    void egSphere(float radius, uint32_t slices, uint32_t stacks, 
+                  float sfactor);
 
     /*!
         Draw a cylinder primitive
@@ -1194,7 +1195,8 @@ extern "C"
 
         \sfactor Multiplyer to s texture coordinates
     */
-    void egCylinder(float bottomRadius, float topRadius, float height, uint32_t slices, float sfactor);
+    void egCylinder(float bottomRadius, float topRadius, 
+                    float height, uint32_t slices, float sfactor);
 
     /*!
         Draw a tube
@@ -1209,7 +1211,8 @@ extern "C"
 
         \sfactor Multiplyer to s texture coordinates
     */
-    void egTube(float outterRadius, float innerRadius, float height, uint32_t slices, float sfactor);
+    void egTube(float outterRadius, float innerRadius,
+                float height, uint32_t slices, float sfactor);
 
     /*!
         Set texture filtering mode. Default is 4x Anysotropic.
@@ -1246,3 +1249,8 @@ extern "C"
 #endif  /* __cplusplus */
 
 #endif  /* EG_H_INCLUDED */
+
+//--- Todo
+// EGState egCreateState();
+// void egDestroyState(EGState *pState);
+// void egSetState(EGState state);

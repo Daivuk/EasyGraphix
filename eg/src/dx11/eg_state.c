@@ -72,6 +72,8 @@ void resetState()
     pState->alphaTestRef[2] = 0;
     pState->alphaTestRef[3] = 0;
 
+    pState->bGenerateTangentBinormal = FALSE;
+
     pState->blendDirty = TRUE;
     pState->depthDirty = TRUE;
     pState->rasterizerDirty = TRUE;
@@ -320,6 +322,9 @@ void egEnable(EG_ENABLE stateBits)
             pState->rasterizerDirty = TRUE;
             pPreviousState->rasterizerDirty = TRUE;
             break;
+        case EG_GENERATE_TANGENT_BINORMAL:
+            pState->bGenerateTangentBinormal = TRUE;
+            break;
     }
 }
 
@@ -373,11 +378,11 @@ void egDisable(EG_ENABLE stateBits)
             pState->rasterizerDirty = TRUE;
             pPreviousState->rasterizerDirty = TRUE;
             break;
+        case EG_GENERATE_TANGENT_BINORMAL:
+            pState->bGenerateTangentBinormal = FALSE;
+            break;
     }
 }
-
-//--- Available features in DX11
-//EG_WIREFRAME = 0x00000400,
 
 //--- New features
 //EG_GENERATE_TANGENT_BINORMAL = 0x00000040,
