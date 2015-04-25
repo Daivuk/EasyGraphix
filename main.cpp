@@ -68,14 +68,19 @@ void update()
 
 void draw()
 {
+    // Clear screen
     egClearColor(0, 0, 0, 1);
     egClear(EG_CLEAR_ALL);
 
+    // Setup matrices
     egModelIdentity();
-
     egSet3DViewProj(-5, -5, 5, 0, 0, 0, 0, 0, 1, 70, .1f, 10000.f);
-    egEnable(EG_DEPTH_TEST);
 
+    // Setup 3d states
+    egEnable(EG_DEPTH_TEST);
+    egEnable(EG_CULL);
+
+    // Draw shit up
     static float rotation = 0.f;
     rotation += 1.f;
 
@@ -149,6 +154,7 @@ void draw()
     }
     egEnd();
 
+    // Post process and swap
     egPostProcess();
     egSwap();
 }

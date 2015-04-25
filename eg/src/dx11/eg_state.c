@@ -42,6 +42,7 @@ void resetState()
     pState->depth.BackFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
     pState->rasterizer.FillMode = D3D11_FILL_SOLID;
     pState->rasterizer.CullMode = D3D11_CULL_NONE;
+    pState->rasterizer.FrontCounterClockwise = TRUE;
     for (int i = 0; i < 8; ++i)
     {
         pState->blend.RenderTarget[i].BlendEnable = FALSE;
@@ -160,6 +161,20 @@ void egBlendFunc(EG_BLEND_FACTOR src, EG_BLEND_FACTOR dst)
     }
 }
 
+void egFrontFace(EG_FRONT_FACE mode)
+{
+    if (!pBoundDevice) return;
+    SEGState *pState = pBoundDevice->states + pBoundDevice->statesStackCount;
+    SEGState *pPreviousState = pState;
+    if (pBoundDevice->statesStackCount) --pPreviousState;
+    if (pState->rasterizer.FrontCounterClockwise != (BOOL)mode)
+    {
+        pState->rasterizer.FrontCounterClockwise = (BOOL)mode;
+        pState->rasterizerDirty = TRUE;
+        pPreviousState->rasterizerDirty = TRUE;
+    }
+}
+
 void egEnable(EG_ENABLE stateBits)
 {
     if (!pBoundDevice) return;
@@ -179,6 +194,12 @@ void egEnable(EG_ENABLE stateBits)
             pState->depth.DepthEnable = TRUE;
             pState->depthDirty = TRUE;
             pPreviousState->depthDirty = TRUE;
+            break;
+        case EG_CULL:
+            if (pState->rasterizer.CullMode != D3D11_CULL_NONE) break;
+            pState->rasterizer.CullMode = D3D11_CULL_BACK;
+            pState->rasterizerDirty = TRUE;
+            pPreviousState->rasterizerDirty = TRUE;
             break;
     }
 }
@@ -203,5 +224,26 @@ void egDisable(EG_ENABLE stateBits)
             pState->depthDirty = TRUE;
             pPreviousState->depthDirty = TRUE;
             break;
+        case EG_CULL:
+            if (pState->rasterizer.CullMode == D3D11_CULL_NONE) break;
+            pState->rasterizer.CullMode = D3D11_CULL_NONE;
+            pState->rasterizerDirty = TRUE;
+            pPreviousState->rasterizerDirty = TRUE;
+            break;
     }
 }
+
+//EG_BLEND = 0x00000001,
+
+//EG_DEPTH_TEST = 0x00000004,
+//EG_STENCIL_TEST = 0x00000008,
+//EG_ALPHA_TEST = 0x00000010,
+//EG_SCISSOR = 0x00000020,
+//EG_GENERATE_TANGENT_BINORMAL = 0x00000040,
+//EG_BLOOM = 0x00000080,
+//EG_HDR = 0x00000100,
+//EG_BLUR = 0x00000200,
+//EG_WIREFRAME = 0x00000400,
+//EG_SHADOW = 0x00000800,
+//EG_DISTORTION = 0x00001000,
+//EG_AMBIENT_OCCLUSION = 0x00002000

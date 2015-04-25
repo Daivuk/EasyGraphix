@@ -318,6 +318,19 @@ extern "C"
 
     } EG_BLEND_FACTOR;
 
+    /*! \enum EG_FRONT_FACE
+        Define front- and back-facing polygons
+    */
+    typedef enum
+    {
+        /*! Clockwise */
+        EG_CW = 0,
+
+        /*! Counter clockwise */
+        EG_CCW = 1
+
+    } EG_FRONT_FACE;
+
     /*!
         Return zero terminated string describing the last error.
     */
@@ -1026,6 +1039,14 @@ extern "C"
         finalColor = (sourceRGBA * sfactor) + (destinationRGBA * dfactor)
     */
     void egBlendFunc(EG_BLEND_FACTOR sfactor, EG_BLEND_FACTOR dfactor);
+
+    /*!
+        Define front- and back-facing polygons
+
+        \param mode Specifies the orientation of front-facing polygons. EG_CW 
+        and EG_CCW are accepted. The initial value is EG_CCW.
+    */
+    void egFrontFace(EG_FRONT_FACE mode);
 
     /*!
         Draw a cube primitive.
