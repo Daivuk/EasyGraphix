@@ -268,7 +268,10 @@ extern "C"
 
         /*! If enabled, screen space ambient occlusion will be applied when 
             egPostProcess is called. */
-        EG_AMBIENT_OCCLUSION            = 0x00002000
+        EG_AMBIENT_OCCLUSION            = 0x00002000,
+
+        /*! Defines wheter or not pixels will be written to depth buffer */
+        EG_DEPTH_WRITE                  = 0x00004000         
 
     } EG_ENABLE;
 
@@ -1228,6 +1231,15 @@ extern "C"
         value. The initial reference value is 0.5f.
     */
     void egAlphaFunc(EG_COMPARE func, float ref);
+
+    /*!
+        Specify the value used for depth buffer comparisons
+
+        \param func Specifies the depth comparison function. Symbolic constants
+        EG_NEVER, EG_LESS, EG_EQUAL, EG_LEQUAL, EG_GREATER, EG_NOTEQUAL,
+        EG_GEQUAL, and EG_ALWAYS are accepted. The initial value is EG_LESS.
+        */
+    void egDepthFunc(EG_COMPARE func);
 
 #ifdef __cplusplus
 }       /* extern "C" */

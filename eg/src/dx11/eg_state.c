@@ -256,6 +256,20 @@ void egAlphaFunc(EG_COMPARE func, float ref)
     }
 }
 
+void egDepthFunc(EG_COMPARE func)
+{
+    if (!pBoundDevice) return;
+    SEGState *pState = pBoundDevice->states + pBoundDevice->statesStackCount;
+    SEGState *pPreviousState = pState;
+    if (pBoundDevice->statesStackCount) --pPreviousState;
+    if (pState->depth.DepthFunc != func + 1)
+    {
+        pState->depth.DepthFunc = func + 1;
+        pState->depthDirty = TRUE;
+        pPreviousState->depthDirty = TRUE;
+    }
+}
+
 void egEnable(EG_ENABLE stateBits)
 {
     if (!pBoundDevice) return;
@@ -293,6 +307,12 @@ void egEnable(EG_ENABLE stateBits)
             pState->alphaTestEnabled = TRUE;
             pState->alphaTestDirty = TRUE;
             pPreviousState->alphaTestDirty = TRUE;
+            break;
+        case EG_DEPTH_WRITE:
+            if (pState->depth.DepthWriteMask == D3D11_DEPTH_WRITE_MASK_ALL) break;
+            pState->depth.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
+            pState->depthDirty = TRUE;
+            pPreviousState->depthDirty = TRUE;
             break;
     }
 }
@@ -335,18 +355,31 @@ void egDisable(EG_ENABLE stateBits)
             pState->alphaTestDirty = TRUE;
             pPreviousState->alphaTestDirty = TRUE;
             break;
+        case EG_DEPTH_WRITE:
+            if (pState->depth.DepthWriteMask == D3D11_DEPTH_WRITE_MASK_ZERO) break;
+            pState->depth.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+            pState->depthDirty = TRUE;
+            pPreviousState->depthDirty = TRUE;
+            break;
     }
 }
 
+//--- Partially implemented
 //EG_BLEND = 0x00000001,
-//EG_DEPTH_TEST = 0x00000004,
-//EG_STENCIL_TEST = 0x00000008,
-//EG_ALPHA_TEST = 0x00000010,
+
+//--- Available features in DX11
+//EG_WIREFRAME = 0x00000400,
+
+//--- New features
 //EG_GENERATE_TANGENT_BINORMAL = 0x00000040,
+//EG_SHADOW = 0x00000800,
+
+//--- Post process
 //EG_BLOOM = 0x00000080,
 //EG_HDR = 0x00000100,
 //EG_BLUR = 0x00000200,
-//EG_WIREFRAME = 0x00000400,
-//EG_SHADOW = 0x00000800,
 //EG_DISTORTION = 0x00001000,
 //EG_AMBIENT_OCCLUSION = 0x00002000
+
+//--- Potential ditch. Who uses that anymore?
+//EG_STENCIL_TEST = 0x00000008,
