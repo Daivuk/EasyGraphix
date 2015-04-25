@@ -150,6 +150,18 @@ EGDevice egCreateDevice(HWND windowHandle)
         egDestroyDevice(&ret);
         return 0;
     }
+    pBoundDevice->pActivePS = pBoundDevice->pPS;
+    for (int i = 0; i < 8; ++i)
+    {
+        ID3DBlob *pPSBAlphaTest = compileShader(g_psAlphaTest[i], "ps_5_0");
+        result = pBoundDevice->pDevice->lpVtbl->CreatePixelShader(pBoundDevice->pDevice, pPSBAlphaTest->lpVtbl->GetBufferPointer(pPSBAlphaTest), pPSBAlphaTest->lpVtbl->GetBufferSize(pPSBAlphaTest), NULL, &(pBoundDevice->pPSAlphaTest[i]));
+        if (result != S_OK)
+        {
+            setError("Failed CreatePixelShader");
+            egDestroyDevice(&ret);
+            return 0;
+        }
+    }
     result = pBoundDevice->pDevice->lpVtbl->CreateVertexShader(pBoundDevice->pDevice, pVSBPassThrough->lpVtbl->GetBufferPointer(pVSBPassThrough), pVSBPassThrough->lpVtbl->GetBufferSize(pVSBPassThrough), NULL, &pBoundDevice->pVSPassThrough);
     if (result != S_OK)
     {
@@ -247,6 +259,19 @@ EGDevice egCreateDevice(HWND windowHandle)
             return 0;
         }
     }
+    {
+        D3D11_BUFFER_DESC cbDesc = {sizeof(float) * 4, D3D11_USAGE_DYNAMIC, D3D11_BIND_CONSTANT_BUFFER, D3D11_CPU_ACCESS_WRITE, 0, 0};
+        float initialRef[4] = {.5f, 0, 0, 0};
+        D3D11_SUBRESOURCE_DATA initialData = {initialRef, 0, 0};
+        result = pBoundDevice->pDevice->lpVtbl->CreateBuffer(pBoundDevice->pDevice, &cbDesc, &initialData, &pBoundDevice->pCBAlphaTestRef);
+        if (result != S_OK)
+        {
+            setError("Failed CreateBuffer pCBAlphaTestRef");
+            egDestroyDevice(&ret);
+            return 0;
+        }
+        pBoundDevice->pDeviceContext->lpVtbl->PSSetConstantBuffers(pBoundDevice->pDeviceContext, 2, 1, &pBoundDevice->pCBAlphaTestRef);
+    }
 
     // Create our geometry batch vertex buffer that will be used to batch everything
     D3D11_BUFFER_DESC vertexBufferDesc;
@@ -291,7 +316,7 @@ EGDevice egCreateDevice(HWND windowHandle)
         }
     }
     {
-        uint8_t pixel[4] = {0, 0, 0, 0};
+        uint8_t pixel[4] = {0, 1, 0, 0};
         texture2DFromData(pBoundDevice->pDefaultTextureMaps + MATERIAL_MAP, pixel, 1, 1, FALSE);
         if (!pBoundDevice->pDefaultTextureMaps[MATERIAL_MAP].pTexture)
         {

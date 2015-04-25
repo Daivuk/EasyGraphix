@@ -65,14 +65,23 @@ void resetState()
     pState->sampler.ComparisonFunc = D3D11_COMPARISON_ALWAYS;
     pState->sampler.MaxLOD = D3D11_FLOAT32_MAX;
 
+    pState->alphaTestEnabled = FALSE;
+    pState->alphaTestFunc = EG_LEQUAL;
+    pState->alphaTestRef[0] = .5f;
+    pState->alphaTestRef[1] = 0;
+    pState->alphaTestRef[2] = 0;
+    pState->alphaTestRef[3] = 0;
+
     pState->blendDirty = TRUE;
     pState->depthDirty = TRUE;
     pState->rasterizerDirty = TRUE;
     pState->samplerDirty = TRUE;
+    pState->alphaTestDirty = TRUE;
 
     pBoundDevice->pDeviceContext->lpVtbl->IASetInputLayout(pBoundDevice->pDeviceContext, pBoundDevice->pInputLayout);
     pBoundDevice->pDeviceContext->lpVtbl->VSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pVS, NULL, 0);
     pBoundDevice->pDeviceContext->lpVtbl->PSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pPS, NULL, 0);
+    pBoundDevice->pActivePS = pBoundDevice->pPS;
 
     ID3D11RenderTargetView *gBuffer[4] = {
         pBoundDevice->gBuffer[G_DIFFUSE].pRenderTargetView,
@@ -121,6 +130,29 @@ void updateState()
         pBoundDevice->pDeviceContext->lpVtbl->PSSetSamplers(pBoundDevice->pDeviceContext, 0, 1, &pSs2D);
         pSs2D->lpVtbl->Release(pSs2D);
         pState->samplerDirty = FALSE;
+    }
+    if (pState->alphaTestDirty)
+    {
+        if (pState->alphaTestEnabled)
+        {
+            pBoundDevice->pActivePS = pBoundDevice->pPSAlphaTest[pState->alphaTestFunc];
+
+            // Update the constant buffer
+            D3D11_MAPPED_SUBRESOURCE map;
+            ID3D11Resource *pRes = NULL;
+            pBoundDevice->pCBAlphaTestRef->lpVtbl->QueryInterface(pBoundDevice->pCBAlphaTestRef, &IID_ID3D11Resource, &pRes);
+            pBoundDevice->pDeviceContext->lpVtbl->Map(pBoundDevice->pDeviceContext, pRes, 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
+            memcpy(map.pData, pState->alphaTestRef, 16);
+            pBoundDevice->pDeviceContext->lpVtbl->Unmap(pBoundDevice->pDeviceContext, pRes, 0);
+            pRes->lpVtbl->Release(pRes);
+            pBoundDevice->pDeviceContext->lpVtbl->PSSetConstantBuffers(pBoundDevice->pDeviceContext, 2, 1, &pBoundDevice->pCBAlphaTestRef);
+        }
+        else
+        {
+            pBoundDevice->pActivePS = pBoundDevice->pPS;
+        }
+        pBoundDevice->pDeviceContext->lpVtbl->PSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pActivePS, NULL, 0);
+        pState->alphaTestDirty = FALSE;
     }
 }
 
@@ -206,6 +238,24 @@ void egFilter(EG_FILTER filter)
     }
 }
 
+void egAlphaFunc(EG_COMPARE func, float ref)
+{
+    if (!pBoundDevice) return;
+    SEGState *pState = pBoundDevice->states + pBoundDevice->statesStackCount;
+    SEGState *pPreviousState = pState;
+    if (pBoundDevice->statesStackCount) --pPreviousState;
+    if (pState->alphaTestFunc != func ||
+        pState->alphaTestRef[0] != ref)
+    {
+        ref = min(ref, 1);
+        ref = max(0, ref);
+        pState->alphaTestFunc = func;
+        pState->alphaTestRef[0] = ref;
+        pState->alphaTestDirty = TRUE;
+        pPreviousState->alphaTestDirty = TRUE;
+    }
+}
+
 void egEnable(EG_ENABLE stateBits)
 {
     if (!pBoundDevice) return;
@@ -237,6 +287,12 @@ void egEnable(EG_ENABLE stateBits)
             pState->rasterizer.ScissorEnable = TRUE;
             pState->rasterizerDirty = TRUE;
             pPreviousState->rasterizerDirty = TRUE;
+            break;
+        case EG_ALPHA_TEST:
+            if (pState->alphaTestEnabled) break;
+            pState->alphaTestEnabled = TRUE;
+            pState->alphaTestDirty = TRUE;
+            pPreviousState->alphaTestDirty = TRUE;
             break;
     }
 }
@@ -273,15 +329,19 @@ void egDisable(EG_ENABLE stateBits)
             pState->rasterizerDirty = TRUE;
             pPreviousState->rasterizerDirty = TRUE;
             break;
+        case EG_ALPHA_TEST:
+            if (!pState->alphaTestEnabled) break;
+            pState->alphaTestEnabled = FALSE;
+            pState->alphaTestDirty = TRUE;
+            pPreviousState->alphaTestDirty = TRUE;
+            break;
     }
 }
 
 //EG_BLEND = 0x00000001,
-
 //EG_DEPTH_TEST = 0x00000004,
 //EG_STENCIL_TEST = 0x00000008,
 //EG_ALPHA_TEST = 0x00000010,
-//EG_SCISSOR = 0x00000020,
 //EG_GENERATE_TANGENT_BINORMAL = 0x00000040,
 //EG_BLOOM = 0x00000080,
 //EG_HDR = 0x00000100,

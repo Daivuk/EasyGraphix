@@ -14,6 +14,7 @@ EGTexture   material;
 EGTexture   diffuseFloor;
 EGTexture   normalFloor;
 EGTexture   materialFloor;
+EGTexture   alphaTest;
 void init()
 {
     device = egCreateDevice(windowHandle);
@@ -54,6 +55,12 @@ void init()
         auto ret = lodepng::decode(image, w, h, "m02.png");
         assert(!ret);
         material = egCreateTexture2D(w, h, image.data(), EG_U8 | EG_RGBA, EG_GENERATE_MIPMAPS);
+    }
+    {
+        std::vector<unsigned char> image;
+        auto ret = lodepng::decode(image, w, h, "alphatest.png");
+        assert(!ret);
+        alphaTest = egCreateTexture2D(w, h, image.data(), EG_U8 | EG_RGBA, EG_GENERATE_MIPMAPS);
     }
 }
 

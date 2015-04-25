@@ -33,6 +33,8 @@ typedef struct
     // Shaders
     ID3D11VertexShader         *pVS;
     ID3D11PixelShader          *pPS;
+    ID3D11PixelShader          *pPSAlphaTest[8];
+    ID3D11PixelShader          *pActivePS;
     ID3D11InputLayout          *pInputLayout;
     ID3D11VertexShader         *pVSPassThrough;
     ID3D11PixelShader          *pPSPassThrough;
@@ -44,6 +46,7 @@ typedef struct
     ID3D11Buffer               *pCBViewProj;
     ID3D11Buffer               *pCBModel;
     ID3D11Buffer               *pCBInvViewProj;
+    ID3D11Buffer               *pCBAlphaTestRef;
 
     // Batch's dynamic vertex buffer
     ID3D11Buffer               *pVertexBuffer;

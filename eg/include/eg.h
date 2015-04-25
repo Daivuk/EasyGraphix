@@ -406,6 +406,36 @@ extern "C"
 
     } EG_FILTER;
 
+    /*! \enum EG_COMPARE
+        Comparison used for depth, stencil and alpha test
+    */
+    typedef enum
+    {
+        /*! Never */
+        EG_NEVER = 0,
+
+        /*! Less < */
+        EG_LESS = 1,
+
+        /*! Equal == */
+        EG_EQUAL = 2,
+
+        /*! Less or equal <= */
+        EG_LEQUAL = 3,
+
+        /*! Greater > */
+        EG_GREATER = 4,
+
+        /*! Not equal != */
+        EG_NOTEQUAL = 5,
+
+        /*! Greater or equal >= */
+        EG_GEQUAL = 6,
+
+        /*! Always */
+        EG_ALWAYS = 7
+
+    } EG_COMPARE;
 
     /*!
         Return zero terminated string describing the last error.
@@ -1103,6 +1133,10 @@ extern "C"
     void egStatePop();
 
     /*!
+        Set the alpha test threashold.
+    */
+
+    /*!
         Specifies pixel arithmetic.
 
         \param sfactor Specifies how the red, green, blue, and alpha 
@@ -1180,6 +1214,20 @@ extern "C"
         \param filter Filter mode
     */
     void egFilter(EG_FILTER filter);
+
+    /*!
+        Specify the alpha test function.
+
+        \param func Specifies the alpha comparison function. Symbolic constants
+        EG_NEVER, EG_LESS, EG_EQUAL, EG_LEQUAL, EG_GREATER, EG_NOTEQUAL, 
+        EG_GEQUAL, and EG_ALWAYS are accepted. The initial value is EG_LEQUAL.
+
+        \param ref Specifies the reference value that incoming alpha values are
+        compared to. This value is clamped to the range [0, 1], where 0 
+        represents the lowest possible alpha value and 1 the highest possible 
+        value. The initial reference value is 0.5f.
+    */
+    void egAlphaFunc(EG_COMPARE func, float ref);
 
 #ifdef __cplusplus
 }       /* extern "C" */

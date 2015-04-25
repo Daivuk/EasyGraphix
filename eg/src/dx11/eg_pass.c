@@ -4,12 +4,14 @@ void beginGeometryPass()
 {
     if (pBoundDevice->bIsInBatch) return;
     if (!pBoundDevice) return;
-    if (pBoundDevice->pass == EG_GEOMETRY_PASS) return;
+
+    SEGState *pState = pBoundDevice->states + pBoundDevice->statesStackCount;
+    if (pBoundDevice->pass == EG_GEOMETRY_PASS && !pState->alphaTestDirty) return;
     pBoundDevice->pass = EG_GEOMETRY_PASS;
 
     pBoundDevice->pDeviceContext->lpVtbl->IASetInputLayout(pBoundDevice->pDeviceContext, pBoundDevice->pInputLayout);
     pBoundDevice->pDeviceContext->lpVtbl->VSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pVS, NULL, 0);
-    pBoundDevice->pDeviceContext->lpVtbl->PSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pPS, NULL, 0);
+    pBoundDevice->pDeviceContext->lpVtbl->PSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pActivePS, NULL, 0);
 
     // Unbind if it's still bound
     ID3D11ShaderResourceView *res = NULL;

@@ -76,47 +76,64 @@ const char *g_vs = MULTILINE(
     }
 );
 
-const char *g_ps = MULTILINE(
-    Texture2D xDiffuse:register(t0);
-    Texture2D xNormal:register(t1);
-    Texture2D xMaterial:register(t2);
-    SamplerState sSampler:register(s0);
+#define PSSTART \
+    "Texture2D xDiffuse:register(t0);" \
+    "Texture2D xNormal:register(t1);" \
+    "Texture2D xMaterial:register(t2);" \
+    "SamplerState sSampler:register(s0);" \
+    "struct sInput" \
+    "{" \
+    "    float4 position:SV_POSITION;" \
+    "    float3 normal:NORMAL;" \
+    "    float3 tangent:TANGENT;" \
+    "    float3 binormal:BINORMAL;" \
+    "    float2 texCoord:TEXCOORD;" \
+    "    float4 color:COLOR;" \
+    "    float2 depth:TEXCOORD1;" \
+    "};" \
+    "struct sOutput" \
+    "{" \
+    "    float4 diffuse:SV_Target0;" \
+    "    float4 depth:SV_Target1;" \
+    "    float4 normal:SV_Target2;" \
+    "    float4 material:SV_Target3;" \
+    "};" \
+    "sOutput main(sInput input)" \
+    "{" \
+    "    float4 xdiffuse = xDiffuse.Sample(sSampler, input.texCoord);" \
+    "    float4 xnormal = xNormal.Sample(sSampler, input.texCoord);" \
+    "    float4 xmaterial = xMaterial.Sample(sSampler, input.texCoord);"
 
-    struct sInput
-    {
-        float4 position:SV_POSITION;
-        float3 normal:NORMAL;
-        float3 tangent:TANGENT;
-        float3 binormal:BINORMAL;
-        float2 texCoord:TEXCOORD;
-        float4 color:COLOR;
-        float2 depth:TEXCOORD1;
-    };
+#define PSEND \
+    "    sOutput output;" \
+    "    output.diffuse = xdiffuse * input.color;" \
+    "    output.depth = input.depth.x / input.depth.y;" \
+    "    xnormal.xyz = xnormal.xyz * 2 - 1;" \
+    "    output.normal.xyz = normalize(xnormal.x * input.tangent + xnormal.y * input.binormal + xnormal.z * input.normal);" \
+    "    output.normal.xyz = output.normal.xyz * .5 + .5;" \
+    "    output.normal.a = 0;" \
+    "    output.material = xmaterial;" \
+    "    return output;" \
+    "}"
 
-    struct sOutput
-    {
-        float4 diffuse:SV_Target0;
-        float4 depth:SV_Target1;
-        float4 normal:SV_Target2;
-        float4 material:SV_Target3;
-    };
+#define PSALPHATESTSTART \
+"cbuffer AlphaTestRefCB:register(b2)" \
+"{" \
+"    float4 alphaTestRef;" \
+"}"
 
-    sOutput main(sInput input)
-    {
-        float4 xdiffuse = xDiffuse.Sample(sSampler, input.texCoord);
-        float4 xnormal = xNormal.Sample(sSampler, input.texCoord);
-        float4 xmaterial = xMaterial.Sample(sSampler, input.texCoord);
-        sOutput output;
-        output.diffuse = xdiffuse * input.color;
-        output.depth = input.depth.x / input.depth.y;
-        xnormal.xyz = xnormal.xyz * 2 - 1;
-        output.normal.xyz = normalize(xnormal.x * input.tangent + xnormal.y * input.binormal + xnormal.z * input.normal);
-        output.normal.xyz = output.normal.xyz * .5 + .5;
-        output.normal.a = 0;
-        output.material = xmaterial;
-        return output;
-    }
-);
+const char *g_psAlphaTest[8] = {
+    PSALPHATESTSTART PSSTART "discard;" PSEND,
+    PSALPHATESTSTART PSSTART "if (xdiffuse.a < alphaTestRef.r) discard;" PSEND,
+    PSALPHATESTSTART PSSTART "if (xdiffuse.a == alphaTestRef.r) discard;" PSEND,
+    PSALPHATESTSTART PSSTART "if (xdiffuse.a <= alphaTestRef.r) discard;" PSEND,
+    PSALPHATESTSTART PSSTART "if (xdiffuse.a > alphaTestRef.r) discard;" PSEND,
+    PSALPHATESTSTART PSSTART "if (xdiffuse.a != alphaTestRef.r) discard;" PSEND,
+    PSALPHATESTSTART PSSTART "if (xdiffuse.a >= alphaTestRef.r) discard;" PSEND,
+    PSSTART PSEND
+};
+
+const char *g_ps = PSSTART PSEND;
 
 const char *g_vsPassThrough = MULTILINE(
     struct sInput
