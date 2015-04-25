@@ -314,6 +314,12 @@ void egEnable(EG_ENABLE stateBits)
             pState->depthDirty = TRUE;
             pPreviousState->depthDirty = TRUE;
             break;
+        case EG_WIREFRAME:
+            if (pState->rasterizer.FillMode == D3D11_FILL_WIREFRAME) break;
+            pState->rasterizer.FillMode = D3D11_FILL_WIREFRAME;
+            pState->rasterizerDirty = TRUE;
+            pPreviousState->rasterizerDirty = TRUE;
+            break;
     }
 }
 
@@ -361,11 +367,14 @@ void egDisable(EG_ENABLE stateBits)
             pState->depthDirty = TRUE;
             pPreviousState->depthDirty = TRUE;
             break;
+        case EG_WIREFRAME:
+            if (pState->rasterizer.FillMode == D3D11_FILL_SOLID) break;
+            pState->rasterizer.FillMode = D3D11_FILL_SOLID;
+            pState->rasterizerDirty = TRUE;
+            pPreviousState->rasterizerDirty = TRUE;
+            break;
     }
 }
-
-//--- Partially implemented
-//EG_BLEND = 0x00000001,
 
 //--- Available features in DX11
 //EG_WIREFRAME = 0x00000400,
@@ -381,5 +390,6 @@ void egDisable(EG_ENABLE stateBits)
 //EG_DISTORTION = 0x00001000,
 //EG_AMBIENT_OCCLUSION = 0x00002000
 
-//--- Potential ditch. Who uses that anymore?
+//--- Potential ditch
 //EG_STENCIL_TEST = 0x00000008,
+//EG_BLEND = 0x00000001, // Alpha channel op. Useful?
