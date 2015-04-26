@@ -30,6 +30,11 @@ extern "C"
     */
     typedef uint32_t EGFormat;
 
+    /*! \typedef EGEnable
+        Holds enabled bits
+    */
+    typedef uint32_t EGEnable;
+
     /*! \enum EG_CLEAR_BITFIELD
         Bitmask representing which part of the frame buffer to clear
     */
@@ -244,7 +249,8 @@ extern "C"
             generated based on egTexCoord. */
         EG_GENERATE_TANGENT_BINORMAL    = 0x00000040,
 
-        /*! If enabled, bloom will be applied when egPostProcess is called. */
+        /*! If enabled, bloom will be applied when egPostProcess is called.
+        This will only work if EG_HDR is also enabled. */
         EG_BLOOM                        = 0x00000080,
 
         /*! If enabled, high dynamic range will be applied when egPostProcess 
@@ -271,7 +277,10 @@ extern "C"
         EG_AMBIENT_OCCLUSION            = 0x00002000,
 
         /*! Defines wheter or not pixels will be written to depth buffer */
-        EG_DEPTH_WRITE                  = 0x00004000         
+        EG_DEPTH_WRITE                  = 0x00004000,
+
+        /*! Draw a vignette around corners of the screen. */
+        EG_VIGNETTE                     = 0x00008000
 
     } EG_ENABLE;
 
@@ -1109,7 +1118,7 @@ extern "C"
         \param stateBits A symbolic constant indicating an EasyGraphix 
         capability.
     */
-    void egEnable(EG_ENABLE stateBits);
+    void egEnable(EGEnable stateBits);
 
     /*!
         Disable EasyGraphix capabilities.
@@ -1117,7 +1126,7 @@ extern "C"
         \param stateBits A symbolic constant indicating an EasyGraphix 
         capability.
     */
-    void egDisable(EG_ENABLE stateBits);
+    void egDisable(EGEnable stateBits);
 
     /*!
         Pushes the state stack
@@ -1243,6 +1252,18 @@ extern "C"
         EG_GEQUAL, and EG_ALWAYS are accepted. The initial value is EG_LESS.
         */
     void egDepthFunc(EG_COMPARE func);
+
+    /*!
+        Specify bloom properties.
+    */
+    void egBloom(int, int samples);
+
+    /*!
+        Specify blur properties
+
+        \param spread Spread value. 0 will mean no blur.
+    */
+    void egBlur(float spread);
 
 #ifdef __cplusplus
 }       /* extern "C" */

@@ -18,6 +18,7 @@
     <ClCompile Include="eg_batch.c" />
     <ClCompile Include="eg_device.c" />
     <ClCompile Include="eg_pass.c" />
+    <ClCompile Include="eg_post.c" />
     <ClCompile Include="eg_rt.c" />
     <ClCompile Include="eg_shaders.c" />
     <ClCompile Include="eg_state.c" />
@@ -31,6 +32,7 @@
     <ClInclude Include="eg_batch.h" />
     <ClInclude Include="eg_device.h" />
     <ClInclude Include="eg_pass.h" />
+    <ClInclude Include="eg_post.h" />
     <ClInclude Include="eg_rt.h" />
     <ClInclude Include="eg_shaders.h" />
     <ClInclude Include="eg_state.h" />

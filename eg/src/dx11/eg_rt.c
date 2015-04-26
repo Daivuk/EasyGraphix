@@ -9,6 +9,11 @@ HRESULT createRenderTarget(SEGRenderTarget2D *pRenderTarget, UINT w, UINT h, DXG
     D3D11_RENDER_TARGET_VIEW_DESC renderTargetViewDesc = {0};
     D3D11_SHADER_RESOURCE_VIEW_DESC shaderResourceViewDesc = {0};
 
+    if (w == 0 || h == 0) return S_OK;
+
+    pRenderTarget->texture.w = (uint32_t)w;
+    pRenderTarget->texture.h = (uint32_t)h;
+
     // Setup the render target texture description.
     textureDesc.Width = w;
     textureDesc.Height = h;

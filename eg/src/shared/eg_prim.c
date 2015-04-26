@@ -98,34 +98,31 @@ void egSphere(float radius, uint32_t slices, uint32_t stacks, float sfactor)
         float sinT = sinf(((float)(j + 1) / (float)stacks) * EG_PI);
         float aSinB = fabsf(sinB);
         float aSinT = fabsf(sinT);
-        for (uint32_t i = 0; i < slices; ++i)
+        egBegin(EG_TRIANGLE_STRIP);
         {
-            egBegin(EG_TRIANGLE_STRIP);
+            for (uint32_t i = 0; i <= slices; ++i)
             {
-                for (uint32_t i = 0; i <= slices; ++i)
-                {
-                    float cosTheta = cosf((float)i / (float)slices * EG_PI * 2);
-                    float sinTheta = sinf((float)i / (float)slices * EG_PI * 2);
+                float cosTheta = cosf((float)i / (float)slices * EG_PI * 2);
+                float sinTheta = sinf((float)i / (float)slices * EG_PI * 2);
 
-                    egNormal(cosTheta * aSinB, -sinTheta * aSinB, cosB);
-                    egTangent(-sinTheta, -cosTheta, 0);
-                    egBinormal(cosTheta * cosB, -sinTheta * cosB, aSinB);
-                    egTexCoord((float)i / (float)slices * sfactor, 1 - cosB * .5f + .5f);
-                    egPosition3(cosTheta * radius * aSinB,
-                                -sinTheta * radius * aSinB,
-                                cosB * radius);
+                egNormal(cosTheta * aSinB, -sinTheta * aSinB, cosB);
+                egTangent(-sinTheta, -cosTheta, 0);
+                egBinormal(cosTheta * cosB, -sinTheta * cosB, aSinB);
+                egTexCoord((float)i / (float)slices * sfactor, 1 - cosB * .5f + .5f);
+                egPosition3(cosTheta * radius * aSinB,
+                            -sinTheta * radius * aSinB,
+                            cosB * radius);
 
-                    egNormal(cosTheta * aSinT, -sinTheta * aSinT, cosT);
-                    egTangent(-sinTheta, -cosTheta, 0);
-                    egBinormal(cosTheta * cosT, -sinTheta * cosT, aSinT);
-                    egTexCoord((float)i / (float)slices * sfactor, 1 - cosT * .5f + .5f);
-                    egPosition3(cosTheta * radius * aSinT,
-                                -sinTheta * radius * aSinT,
-                                cosT * radius);
-                }
+                egNormal(cosTheta * aSinT, -sinTheta * aSinT, cosT);
+                egTangent(-sinTheta, -cosTheta, 0);
+                egBinormal(cosTheta * cosT, -sinTheta * cosT, aSinT);
+                egTexCoord((float)i / (float)slices * sfactor, 1 - cosT * .5f + .5f);
+                egPosition3(cosTheta * radius * aSinT,
+                            -sinTheta * radius * aSinT,
+                            cosT * radius);
             }
-            egEnd();
         }
+        egEnd();
     }
 }
 

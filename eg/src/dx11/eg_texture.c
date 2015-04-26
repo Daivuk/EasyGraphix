@@ -197,6 +197,9 @@ EGTexture egCreateTexture2D(uint32_t width, uint32_t height, const void *pData, 
 
     SEGTexture2D texture2D = {0};
 
+    texture2D.w = width;
+    texture2D.h = height;
+
     uint8_t *pConvertedData = NULL;
     if (dataFormat == (EG_U8 | EG_RGBA))
     {

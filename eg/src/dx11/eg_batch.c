@@ -261,7 +261,7 @@ void flush()
 
     // Generate Tangents and Binormals
     SEGState *pState = pBoundDevice->states + pBoundDevice->statesStackCount;
-    if (pState->bGenerateTangentBinormal)
+    if (pState->enableBits & EG_GENERATE_TANGENT_BINORMAL)
     {
         generateTangentBinormal();
     }
@@ -482,6 +482,7 @@ void egFalloffExponent(float exponent)
 
 void egMultiply(float multiply)
 {
+    pBoundDevice->currentOmni.multiply = multiply;
 }
 
 void egSpecular(float intensity, float shininess)
@@ -490,42 +491,4 @@ void egSpecular(float intensity, float shininess)
 
 void egSelfIllum(float intensity)
 {
-}
-
-void drawScreenQuad(float left, float top, float right, float bottom, float *pColor)
-{
-    D3D11_MAPPED_SUBRESOURCE mappedVertexBuffer;
-    pBoundDevice->pDeviceContext->lpVtbl->Map(pBoundDevice->pDeviceContext, pBoundDevice->pVertexBufferRes, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedVertexBuffer);
-    pBoundDevice->pVertex = (SEGVertex*)mappedVertexBuffer.pData;
-
-    pBoundDevice->pVertex[0].x = left;
-    pBoundDevice->pVertex[0].y = top;
-    pBoundDevice->pVertex[0].u = 0;
-    pBoundDevice->pVertex[0].v = 0;
-    memcpy(&pBoundDevice->pVertex[0].r, pColor, 16);
-
-    pBoundDevice->pVertex[1].x = left;
-    pBoundDevice->pVertex[1].y = bottom;
-    pBoundDevice->pVertex[1].u = 0;
-    pBoundDevice->pVertex[1].v = 1;
-    memcpy(&pBoundDevice->pVertex[1].r, pColor, 16);
-
-    pBoundDevice->pVertex[2].x = right;
-    pBoundDevice->pVertex[2].y = top;
-    pBoundDevice->pVertex[2].u = 1;
-    pBoundDevice->pVertex[2].v = 0;
-    memcpy(&pBoundDevice->pVertex[2].r, pColor, 16);
-
-    pBoundDevice->pVertex[3].x = right;
-    pBoundDevice->pVertex[3].y = bottom;
-    pBoundDevice->pVertex[3].u = 1;
-    pBoundDevice->pVertex[3].v = 1;
-    memcpy(&pBoundDevice->pVertex[3].r, pColor, 16);
-
-    pBoundDevice->pDeviceContext->lpVtbl->Unmap(pBoundDevice->pDeviceContext, pBoundDevice->pVertexBufferRes, 0);
-
-    const UINT stride = sizeof(SEGVertex);
-    const UINT offset = 0;
-    pBoundDevice->pDeviceContext->lpVtbl->IASetVertexBuffers(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->pVertexBuffer, &stride, &offset);
-    pBoundDevice->pDeviceContext->lpVtbl->Draw(pBoundDevice->pDeviceContext, 4, 0);
 }

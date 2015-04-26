@@ -178,6 +178,115 @@ const char *g_psPassThrough = MULTILINE(
     }
 );
 
+const char *g_psLDR = MULTILINE(
+    Texture2D xDiffuse:register(t0);
+    SamplerState sSampler:register(s0);
+
+    struct sInput
+    {
+        float4 position:SV_POSITION;
+        float2 texCoord:TEXCOORD;
+        float4 color:COLOR;
+    };
+
+    float4 main(sInput input):SV_TARGET
+    {
+        float4 xdiffuse = xDiffuse.Sample(sSampler, input.texCoord);
+        xdiffuse -= 1;
+        return xdiffuse * input.color;
+    }
+);
+
+const char *g_psBlurH = MULTILINE(
+    cbuffer AlphaTestRefCB:register(b3)
+    {
+        float4 blurSpread;
+    }
+
+    Texture2D xDiffuse:register(t0);
+    SamplerState sSampler:register(s0);
+
+    struct sInput
+    {
+        float4 position:SV_POSITION;
+        float2 texCoord:TEXCOORD;
+        float4 color:COLOR;
+    };
+
+    float4 main(sInput input):SV_TARGET
+    {
+        float4 xdiffuse = xDiffuse.Sample(sSampler, input.texCoord);
+        for (int i = 1; i <= 8; ++i)
+        {
+            xdiffuse += xDiffuse.Sample(sSampler, input.texCoord + float2(blurSpread.x * i, 0));
+            xdiffuse += xDiffuse.Sample(sSampler, input.texCoord - float2(blurSpread.x * i, 0));
+        }
+        xdiffuse /= 17;
+        return xdiffuse * input.color;
+    }
+);
+
+const char *g_psBlurV = MULTILINE(
+    cbuffer AlphaTestRefCB:register(b3)
+    {
+        float4 blurSpread;
+    }
+
+    Texture2D xDiffuse:register(t0);
+    SamplerState sSampler:register(s0);
+
+    struct sInput
+    {
+        float4 position:SV_POSITION;
+        float2 texCoord:TEXCOORD;
+        float4 color:COLOR;
+    };
+
+    float4 main(sInput input):SV_TARGET
+    {
+        float4 xdiffuse = xDiffuse.Sample(sSampler, input.texCoord);
+        for (int i = 1; i <= 8; ++i)
+        {
+            xdiffuse += xDiffuse.Sample(sSampler, input.texCoord + float2(0, blurSpread.y * i));
+            xdiffuse += xDiffuse.Sample(sSampler, input.texCoord - float2(0, blurSpread.y * i));
+        }
+        xdiffuse /= 17;
+        return xdiffuse * input.color;
+    }
+);
+
+const char *g_psToneMap = MULTILINE(
+    Texture2D xHdr : register(t0);
+    Texture2D xBloom : register(t1);
+    SamplerState sSampler : register(s0);
+
+    struct sInput
+    {
+        float4 position:SV_POSITION;
+        float2 texCoord:TEXCOORD;
+        float4 color:COLOR;
+    };
+
+    float4 main(sInput input):SV_TARGET
+    {
+        float4 xhdr = xHdr.Sample(sSampler, input.texCoord);
+        float4 xbloom = xBloom.Sample(sSampler, input.texCoord);
+
+        // Mix HDR and bloom
+        float4 color = lerp(xhdr, xbloom, 0.4);
+
+        // Vignette
+        input.texCoord -= 0.5;
+        float vignette = 1 - dot(input.texCoord, input.texCoord);
+        color *= pow(vignette, 4.0);
+
+        // Exposure level
+        color *= 1.0;
+
+        return color * input.color;
+    }
+);
+
 const char *g_psAmbient = MULTILINE(
     Texture2D xDiffuse:register(t0);
     Texture2D xMaterial:register(t3);
@@ -194,7 +303,7 @@ const char *g_psAmbient = MULTILINE(
     {
         float4 xdiffuse = xDiffuse.Sample(sSampler, input.texCoord);
         float4 xmaterial = xMaterial.Sample(sSampler, input.texCoord);
-        return xdiffuse * input.color + xdiffuse * xmaterial.b;
+        return xdiffuse * input.color + xdiffuse * xmaterial.b * 2;
     }
 );
 
@@ -206,8 +315,8 @@ const char *g_psOmni = MULTILINE(
 
     cbuffer OmniCB:register(b1)
     {
-        float3 lPos;
-        float lRadius;
+        float4 lPos;
+        float lRadius, lMultiply, ls, lt;
         float4 lColor;
     }
 
@@ -243,7 +352,7 @@ const char *g_psOmni = MULTILINE(
     
         // Normal
         float3 normal = normalize(xnormal * 2 - 1);
-        float3 lightDir = lPos - position.xyz;
+        float3 lightDir = lPos.xyz - position.xyz;
     
         // Attenuation stuff
         float dis = length(lightDir);
@@ -253,7 +362,7 @@ const char *g_psOmni = MULTILINE(
         dis = pow(dis, 1);
         float dotNormal = dot(normal, lightDir);
         dotNormal = saturate(dotNormal);
-        float intensity = dis * dotNormal;
+        float intensity = dis * dotNormal * lMultiply;
         finalColor += xdiffuse * lColor * intensity;
     
         // Calculate specular

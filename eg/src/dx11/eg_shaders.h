@@ -10,6 +10,10 @@ extern const char *g_ps;
 extern const char *g_psAlphaTest[8];
 extern const char *g_vsPassThrough;
 extern const char *g_psPassThrough;
+extern const char *g_psLDR;
+extern const char *g_psBlurH;
+extern const char *g_psBlurV;
+extern const char *g_psToneMap;
 extern const char *g_psAmbient;
 extern const char *g_psOmni;
 

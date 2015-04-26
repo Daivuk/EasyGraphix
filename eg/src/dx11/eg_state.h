@@ -24,13 +24,15 @@ typedef struct
     BOOL                        samplerDirty;
 
     // Alpha test
-    BOOL                        alphaTestEnabled;
     EG_COMPARE                  alphaTestFunc;
     float                       alphaTestRef[4];
     BOOL                        alphaTestDirty;
 
-    // Tangent and Binormals
-    BOOL                        bGenerateTangentBinormal;
+    // Blur
+    float                       blurSpread;
+
+    // Current enable bits
+    EGEnable                    enableBits;
 } SEGState;
 
 void resetState();

@@ -29,6 +29,9 @@ typedef struct
     ID3D11DepthStencilView     *pDepthStencilView;
     D3D11_TEXTURE2D_DESC        backBufferDesc;
     SEGRenderTarget2D           gBuffer[4];
+    SEGRenderTarget2D           accumulationBuffer;
+    SEGRenderTarget2D           bloomBuffer;
+    SEGRenderTarget2D           blurBuffers[8][2];
 
     // Shaders
     ID3D11VertexShader         *pVS;
@@ -41,34 +44,45 @@ typedef struct
     ID3D11InputLayout          *pInputLayoutPassThrough;
     ID3D11PixelShader          *pPSAmbient;
     ID3D11PixelShader          *pPSOmni;
+    ID3D11PixelShader          *pPSLDR;
+    ID3D11PixelShader          *pPSBlurH;
+    ID3D11PixelShader          *pPSBlurV;
+    ID3D11PixelShader          *pPSToneMap;
 
     // Constant buffers
     ID3D11Buffer               *pCBViewProj;
     ID3D11Buffer               *pCBModel;
     ID3D11Buffer               *pCBInvViewProj;
     ID3D11Buffer               *pCBAlphaTestRef;
+    ID3D11Buffer               *pCBOmni;
+    ID3D11Buffer               *pCBBlurSpread;
 
     // Batch's dynamic vertex buffer
     ID3D11Buffer               *pVertexBuffer;
     ID3D11Resource             *pVertexBufferRes;
 
-    SEGTexture2D               *textures;
-    uint32_t                    textureCount;
-    SEGTexture2D                pDefaultTextureMaps[3];
-    uint32_t                    viewPort[4];
-    SEGMatrix                   worldMatrices[MAX_STACK];
-    uint32_t                    worldMatricesStackCount;
-    SEGMatrix                  *pBoundWorldMatrix;
+    // Matrices
     SEGMatrix                   projectionMatrix;
     SEGMatrix                   viewMatrix;
     SEGMatrix                   viewProjMatrix;
     SEGMatrix                   invViewProjMatrix;
+    SEGMatrix                   worldMatrices[MAX_STACK];
+    uint32_t                    worldMatricesStackCount;
+
+    // Textures
+    SEGTexture2D               *textures;
+    uint32_t                    textureCount;
+    SEGTexture2D                pDefaultTextureMaps[3];
+    SEGTexture2D                transparentBlackTexture;
+
+    // States
+    uint32_t                    viewPort[4];
     SEGState                    states[MAX_STACK];
     uint32_t                    statesStackCount;
     float                       clearColor[4];
-    SEGRenderTarget2D           accumulationBuffer;
     EG_PASS                     pass;
-    ID3D11Buffer               *pCBOmni;
+
+    // Batching
     BOOL                        bIsInBatch;
     EG_MODE                     currentMode;
     SEGVertex                  *pVertex;

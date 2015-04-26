@@ -136,6 +136,10 @@ EGDevice egCreateDevice(HWND windowHandle)
     ID3DBlob *pPSBPassThrough = compileShader(g_psPassThrough, "ps_5_0");
     ID3DBlob *pPSBAmbient = compileShader(g_psAmbient, "ps_5_0");
     ID3DBlob *pPSBOmni = compileShader(g_psOmni, "ps_5_0");
+    ID3DBlob *pPSLDR = compileShader(g_psLDR, "ps_5_0");
+    ID3DBlob *pPSBlurH = compileShader(g_psBlurH, "ps_5_0");
+    ID3DBlob *pPSBlurV = compileShader(g_psBlurV, "ps_5_0");
+    ID3DBlob *pPSToneMap = compileShader(g_psToneMap, "ps_5_0");
     result = pBoundDevice->pDevice->lpVtbl->CreateVertexShader(pBoundDevice->pDevice, pVSB->lpVtbl->GetBufferPointer(pVSB), pVSB->lpVtbl->GetBufferSize(pVSB), NULL, &pBoundDevice->pVS);
     if (result != S_OK)
     {
@@ -176,6 +180,13 @@ EGDevice egCreateDevice(HWND windowHandle)
         egDestroyDevice(&ret);
         return 0;
     }
+    result = pBoundDevice->pDevice->lpVtbl->CreatePixelShader(pBoundDevice->pDevice, pPSLDR->lpVtbl->GetBufferPointer(pPSLDR), pPSLDR->lpVtbl->GetBufferSize(pPSLDR), NULL, &pBoundDevice->pPSLDR);
+    if (result != S_OK)
+    {
+        setError("Failed CreatePixelShader LDR");
+        egDestroyDevice(&ret);
+        return 0;
+    }
     result = pBoundDevice->pDevice->lpVtbl->CreatePixelShader(pBoundDevice->pDevice, pPSBAmbient->lpVtbl->GetBufferPointer(pPSBAmbient), pPSBAmbient->lpVtbl->GetBufferSize(pPSBAmbient), NULL, &pBoundDevice->pPSAmbient);
     if (result != S_OK)
     {
@@ -187,6 +198,27 @@ EGDevice egCreateDevice(HWND windowHandle)
     if (result != S_OK)
     {
         setError("Failed CreatePixelShader Ambient");
+        egDestroyDevice(&ret);
+        return 0;
+    }
+    result = pBoundDevice->pDevice->lpVtbl->CreatePixelShader(pBoundDevice->pDevice, pPSBlurH->lpVtbl->GetBufferPointer(pPSBlurH), pPSBlurH->lpVtbl->GetBufferSize(pPSBlurH), NULL, &pBoundDevice->pPSBlurH);
+    if (result != S_OK)
+    {
+        setError("Failed CreatePixelShader BlurH");
+        egDestroyDevice(&ret);
+        return 0;
+    }
+    result = pBoundDevice->pDevice->lpVtbl->CreatePixelShader(pBoundDevice->pDevice, pPSBlurV->lpVtbl->GetBufferPointer(pPSBlurV), pPSBlurV->lpVtbl->GetBufferSize(pPSBlurV), NULL, &pBoundDevice->pPSBlurV);
+    if (result != S_OK)
+    {
+        setError("Failed CreatePixelShader BlurV");
+        egDestroyDevice(&ret);
+        return 0;
+    }
+    result = pBoundDevice->pDevice->lpVtbl->CreatePixelShader(pBoundDevice->pDevice, pPSToneMap->lpVtbl->GetBufferPointer(pPSToneMap), pPSToneMap->lpVtbl->GetBufferSize(pPSToneMap), NULL, &pBoundDevice->pPSToneMap);
+    if (result != S_OK)
+    {
+        setError("Failed CreatePixelShader ToneMap");
         egDestroyDevice(&ret);
         return 0;
     }
@@ -266,11 +298,21 @@ EGDevice egCreateDevice(HWND windowHandle)
         result = pBoundDevice->pDevice->lpVtbl->CreateBuffer(pBoundDevice->pDevice, &cbDesc, &initialData, &pBoundDevice->pCBAlphaTestRef);
         if (result != S_OK)
         {
-            setError("Failed CreateBuffer pCBAlphaTestRef");
+            setError("Failed CreateBuffer CBAlphaTestRef");
             egDestroyDevice(&ret);
             return 0;
         }
         pBoundDevice->pDeviceContext->lpVtbl->PSSetConstantBuffers(pBoundDevice->pDeviceContext, 2, 1, &pBoundDevice->pCBAlphaTestRef);
+    }
+    {
+        D3D11_BUFFER_DESC cbDesc = {sizeof(float) * 4, D3D11_USAGE_DYNAMIC, D3D11_BIND_CONSTANT_BUFFER, D3D11_CPU_ACCESS_WRITE, 0, 0};
+        result = pBoundDevice->pDevice->lpVtbl->CreateBuffer(pBoundDevice->pDevice, &cbDesc, NULL, &pBoundDevice->pCBBlurSpread);
+        if (result != S_OK)
+        {
+            setError("Failed CreateBuffer CBBlurSpread");
+            egDestroyDevice(&ret);
+            return 0;
+        }
     }
 
     // Create our geometry batch vertex buffer that will be used to batch everything
@@ -324,6 +366,15 @@ EGDevice egCreateDevice(HWND windowHandle)
             return 0;
         }
     }
+    {
+        uint8_t pixel[4] = {0, 0, 0, 0};
+        texture2DFromData(&pBoundDevice->transparentBlackTexture, pixel, 1, 1, FALSE);
+        if (!pBoundDevice->transparentBlackTexture.pTexture)
+        {
+            egDestroyDevice(&ret);
+            return 0;
+        }
+    }
 
     // Create our G-Buffer
     result = createRenderTarget(pBoundDevice->gBuffer + G_DIFFUSE,
@@ -362,11 +413,38 @@ EGDevice egCreateDevice(HWND windowHandle)
     // Accumulation buffer. This is an HDR texture
     result = createRenderTarget(&pBoundDevice->accumulationBuffer,
                                 pBoundDevice->backBufferDesc.Width, pBoundDevice->backBufferDesc.Height,
-                                DXGI_FORMAT_R16G16B16A16_FLOAT);
+                                DXGI_FORMAT_R16G16B16A16_FLOAT); // DXGI_FORMAT_R11G11B10_FLOAT
     if (result != S_OK)
     {
         egDestroyDevice(&ret);
         return 0;
+    }
+
+    // Create bloom buffers
+    result = createRenderTarget(&pBoundDevice->bloomBuffer,
+                                pBoundDevice->backBufferDesc.Width, pBoundDevice->backBufferDesc.Height,
+                                DXGI_FORMAT_R8G8B8A8_UNORM);
+    if (result != S_OK)
+    {
+        egDestroyDevice(&ret);
+        return 0;
+    }
+
+    // Create blur buffers
+    for (int i = 0; i < 8; ++i)
+    {
+        UINT divider = (UINT)pow(2, (double)i);
+        for (int k = 0; k < 2; ++k)
+        {
+            result = createRenderTarget(&pBoundDevice->blurBuffers[i][k],
+                                        pBoundDevice->backBufferDesc.Width / divider, pBoundDevice->backBufferDesc.Height / divider,
+                                        DXGI_FORMAT_R8G8B8A8_UNORM);
+            if (result != S_OK)
+            {
+                egDestroyDevice(&ret);
+                return 0;
+            }
+        }
     }
 
     resetState();
@@ -413,6 +491,56 @@ void egDestroyDevice(EGDevice *pDeviceID)
     for (uint32_t i = 0; i < 4; ++i)
     {
         SEGRenderTarget2D *pRenderTarget = pDevice->gBuffer + i;
+        if (pRenderTarget)
+        {
+            SEGTexture2D *pTexture = &pRenderTarget->texture;
+            if (pTexture)
+            {
+                if (pTexture->pTexture)
+                {
+                    pTexture->pTexture->lpVtbl->Release(pTexture->pTexture);
+                }
+                if (pTexture->pResourceView)
+                {
+                    pTexture->pResourceView->lpVtbl->Release(pTexture->pResourceView);
+                }
+            }
+            if (pRenderTarget->pRenderTargetView)
+            {
+                pRenderTarget->pRenderTargetView->lpVtbl->Release(pRenderTarget->pRenderTargetView);
+            }
+        }
+    }
+
+    for (uint32_t i = 0; i < 8; ++i)
+    {
+        for (uint32_t k = 0; k < 2; ++k)
+        {
+            SEGRenderTarget2D *pRenderTarget = &pDevice->blurBuffers[i][k];
+            if (pRenderTarget)
+            {
+                SEGTexture2D *pTexture = &pRenderTarget->texture;
+                if (pTexture)
+                {
+                    if (pTexture->pTexture)
+                    {
+                        pTexture->pTexture->lpVtbl->Release(pTexture->pTexture);
+                    }
+                    if (pTexture->pResourceView)
+                    {
+                        pTexture->pResourceView->lpVtbl->Release(pTexture->pResourceView);
+                    }
+                }
+                if (pRenderTarget->pRenderTargetView)
+                {
+                    pRenderTarget->pRenderTargetView->lpVtbl->Release(pRenderTarget->pRenderTargetView);
+                }
+            }
+        }
+    }
+
+    {
+        SEGRenderTarget2D *pRenderTarget = &pDevice->bloomBuffer;
         if (pRenderTarget)
         {
             SEGTexture2D *pTexture = &pRenderTarget->texture;

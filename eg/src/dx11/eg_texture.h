@@ -10,6 +10,7 @@ typedef struct
 {
     ID3D11Texture2D            *pTexture;
     ID3D11ShaderResourceView   *pResourceView;
+    uint32_t                    w, h;
 } SEGTexture2D;
 
 EGTexture createTexture(SEGTexture2D *pTexture);

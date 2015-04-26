@@ -27,6 +27,8 @@ void resetState()
     egViewPort(0, 0, (uint32_t)pBoundDevice->backBufferDesc.Width, (uint32_t)pBoundDevice->backBufferDesc.Height);
     egModelIdentity();
 
+    pState->enableBits = EG_DEPTH_WRITE;
+
     pState->depth.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
     pState->depth.DepthFunc = D3D11_COMPARISON_LESS;
     pState->depth.StencilEnable = FALSE;
@@ -65,14 +67,13 @@ void resetState()
     pState->sampler.ComparisonFunc = D3D11_COMPARISON_ALWAYS;
     pState->sampler.MaxLOD = D3D11_FLOAT32_MAX;
 
-    pState->alphaTestEnabled = FALSE;
     pState->alphaTestFunc = EG_LEQUAL;
     pState->alphaTestRef[0] = .5f;
     pState->alphaTestRef[1] = 0;
     pState->alphaTestRef[2] = 0;
     pState->alphaTestRef[3] = 0;
 
-    pState->bGenerateTangentBinormal = FALSE;
+    pState->blurSpread = 8.f;
 
     pState->blendDirty = TRUE;
     pState->depthDirty = TRUE;
@@ -135,7 +136,7 @@ void updateState()
     }
     if (pState->alphaTestDirty)
     {
-        if (pState->alphaTestEnabled)
+        if (pState->enableBits & EG_ALPHA_TEST)
         {
             pBoundDevice->pActivePS = pBoundDevice->pPSAlphaTest[pState->alphaTestFunc];
 
@@ -272,116 +273,111 @@ void egDepthFunc(EG_COMPARE func)
     }
 }
 
-void egEnable(EG_ENABLE stateBits)
+void egBlur(float spread)
 {
     if (!pBoundDevice) return;
     SEGState *pState = pBoundDevice->states + pBoundDevice->statesStackCount;
-    SEGState *pPreviousState = pState;
-    if (pBoundDevice->statesStackCount) --pPreviousState;
-    switch (stateBits)
-    {
-        case EG_BLEND:
-            if (pState->blend.RenderTarget->BlendEnable) break;
-            pState->blend.RenderTarget->BlendEnable = TRUE;
-            pState->blendDirty = TRUE;
-            pPreviousState->blendDirty = TRUE;
-            break;
-        case EG_DEPTH_TEST:
-            if (pState->depth.DepthEnable) break;
-            pState->depth.DepthEnable = TRUE;
-            pState->depthDirty = TRUE;
-            pPreviousState->depthDirty = TRUE;
-            break;
-        case EG_CULL:
-            if (pState->rasterizer.CullMode != D3D11_CULL_NONE) break;
-            pState->rasterizer.CullMode = D3D11_CULL_BACK;
-            pState->rasterizerDirty = TRUE;
-            pPreviousState->rasterizerDirty = TRUE;
-            break;
-        case EG_SCISSOR:
-            if (pState->rasterizer.ScissorEnable) break;
-            pState->rasterizer.ScissorEnable = TRUE;
-            pState->rasterizerDirty = TRUE;
-            pPreviousState->rasterizerDirty = TRUE;
-            break;
-        case EG_ALPHA_TEST:
-            if (pState->alphaTestEnabled) break;
-            pState->alphaTestEnabled = TRUE;
-            pState->alphaTestDirty = TRUE;
-            pPreviousState->alphaTestDirty = TRUE;
-            break;
-        case EG_DEPTH_WRITE:
-            if (pState->depth.DepthWriteMask == D3D11_DEPTH_WRITE_MASK_ALL) break;
-            pState->depth.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
-            pState->depthDirty = TRUE;
-            pPreviousState->depthDirty = TRUE;
-            break;
-        case EG_WIREFRAME:
-            if (pState->rasterizer.FillMode == D3D11_FILL_WIREFRAME) break;
-            pState->rasterizer.FillMode = D3D11_FILL_WIREFRAME;
-            pState->rasterizerDirty = TRUE;
-            pPreviousState->rasterizerDirty = TRUE;
-            break;
-        case EG_GENERATE_TANGENT_BINORMAL:
-            pState->bGenerateTangentBinormal = TRUE;
-            break;
-    }
+    pState->blurSpread = spread;
 }
 
-void egDisable(EG_ENABLE stateBits)
+void egEnable(EGEnable stateBits)
 {
     if (!pBoundDevice) return;
     SEGState *pState = pBoundDevice->states + pBoundDevice->statesStackCount;
     SEGState *pPreviousState = pState;
     if (pBoundDevice->statesStackCount) --pPreviousState;
-    switch (stateBits)
+    if ((stateBits & EG_BLEND) && !(pState->enableBits & EG_BLEND))
     {
-        case EG_BLEND:
-            if (!pState->blend.RenderTarget->BlendEnable) break;
-            pState->blend.RenderTarget->BlendEnable = FALSE;
-            pState->blendDirty = TRUE;
-            pPreviousState->blendDirty = TRUE;
-            break;
-        case EG_DEPTH_TEST:
-            if (!pState->depth.DepthEnable) break;
-            pState->depth.DepthEnable = FALSE;
-            pState->depthDirty = TRUE;
-            pPreviousState->depthDirty = TRUE;
-            break;
-        case EG_CULL:
-            if (pState->rasterizer.CullMode == D3D11_CULL_NONE) break;
-            pState->rasterizer.CullMode = D3D11_CULL_NONE;
-            pState->rasterizerDirty = TRUE;
-            pPreviousState->rasterizerDirty = TRUE;
-            break;
-        case EG_SCISSOR:
-            if (!pState->rasterizer.ScissorEnable) break;
-            pState->rasterizer.ScissorEnable = FALSE;
-            pState->rasterizerDirty = TRUE;
-            pPreviousState->rasterizerDirty = TRUE;
-            break;
-        case EG_ALPHA_TEST:
-            if (!pState->alphaTestEnabled) break;
-            pState->alphaTestEnabled = FALSE;
-            pState->alphaTestDirty = TRUE;
-            pPreviousState->alphaTestDirty = TRUE;
-            break;
-        case EG_DEPTH_WRITE:
-            if (pState->depth.DepthWriteMask == D3D11_DEPTH_WRITE_MASK_ZERO) break;
-            pState->depth.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
-            pState->depthDirty = TRUE;
-            pPreviousState->depthDirty = TRUE;
-            break;
-        case EG_WIREFRAME:
-            if (pState->rasterizer.FillMode == D3D11_FILL_SOLID) break;
-            pState->rasterizer.FillMode = D3D11_FILL_SOLID;
-            pState->rasterizerDirty = TRUE;
-            pPreviousState->rasterizerDirty = TRUE;
-            break;
-        case EG_GENERATE_TANGENT_BINORMAL:
-            pState->bGenerateTangentBinormal = FALSE;
-            break;
+        pState->blend.RenderTarget->BlendEnable = TRUE;
+        pState->blendDirty = TRUE;
+        pPreviousState->blendDirty = TRUE;
     }
+    if ((stateBits & EG_DEPTH_TEST) && !(pState->enableBits & EG_DEPTH_TEST))
+    {
+        pState->depth.DepthEnable = TRUE;
+        pState->depthDirty = TRUE;
+        pPreviousState->depthDirty = TRUE;
+    }
+    if ((stateBits & EG_CULL) && !(pState->enableBits & EG_CULL))
+    {
+        pState->rasterizer.CullMode = D3D11_CULL_BACK;
+        pState->rasterizerDirty = TRUE;
+        pPreviousState->rasterizerDirty = TRUE;
+    }
+    if ((stateBits & EG_SCISSOR) && !(pState->enableBits & EG_SCISSOR))
+    {
+        pState->rasterizer.ScissorEnable = TRUE;
+        pState->rasterizerDirty = TRUE;
+        pPreviousState->rasterizerDirty = TRUE;
+    }
+    if ((stateBits & EG_ALPHA_TEST) && !(pState->enableBits & EG_ALPHA_TEST))
+    {
+        pState->alphaTestDirty = TRUE;
+        pPreviousState->alphaTestDirty = TRUE;
+    }
+    if ((stateBits & EG_DEPTH_WRITE) && !(pState->enableBits & EG_DEPTH_WRITE))
+    {
+        pState->depth.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
+        pState->depthDirty = TRUE;
+        pPreviousState->depthDirty = TRUE;
+    }
+    if ((stateBits & EG_WIREFRAME) && !(pState->enableBits & EG_WIREFRAME))
+    {
+        pState->rasterizer.FillMode = D3D11_FILL_WIREFRAME;
+        pState->rasterizerDirty = TRUE;
+        pPreviousState->rasterizerDirty = TRUE;
+    }
+    pState->enableBits |= stateBits;
+}
+
+void egDisable(EGEnable stateBits)
+{
+    if (!pBoundDevice) return;
+    SEGState *pState = pBoundDevice->states + pBoundDevice->statesStackCount;
+    SEGState *pPreviousState = pState;
+    if (pBoundDevice->statesStackCount) --pPreviousState;
+    if ((stateBits & EG_BLEND) && (pState->enableBits & EG_BLEND))
+    {
+        pState->blend.RenderTarget->BlendEnable = FALSE;
+        pState->blendDirty = TRUE;
+        pPreviousState->blendDirty = TRUE;
+    }
+    if ((stateBits & EG_DEPTH_TEST) && (pState->enableBits & EG_DEPTH_TEST))
+    {
+        pState->depth.DepthEnable = FALSE;
+        pState->depthDirty = TRUE;
+        pPreviousState->depthDirty = TRUE;
+    }
+    if ((stateBits & EG_CULL) && (pState->enableBits & EG_CULL))
+    {
+        pState->rasterizer.CullMode = D3D11_CULL_NONE;
+        pState->rasterizerDirty = TRUE;
+        pPreviousState->rasterizerDirty = TRUE;
+    }
+    if ((stateBits & EG_SCISSOR) && (pState->enableBits & EG_SCISSOR))
+    {
+        pState->rasterizer.ScissorEnable = FALSE;
+        pState->rasterizerDirty = TRUE;
+        pPreviousState->rasterizerDirty = TRUE;
+    }
+    if ((stateBits & EG_ALPHA_TEST) && (pState->enableBits & EG_ALPHA_TEST))
+    {
+        pState->alphaTestDirty = TRUE;
+        pPreviousState->alphaTestDirty = TRUE;
+    }
+    if ((stateBits & EG_DEPTH_WRITE) && (pState->enableBits & EG_DEPTH_WRITE))
+    {
+        pState->depth.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+        pState->depthDirty = TRUE;
+        pPreviousState->depthDirty = TRUE;
+    }
+    if ((stateBits & EG_WIREFRAME) && (pState->enableBits & EG_WIREFRAME))
+    {
+        pState->rasterizer.FillMode = D3D11_FILL_SOLID;
+        pState->rasterizerDirty = TRUE;
+        pPreviousState->rasterizerDirty = TRUE;
+    }
+    pState->enableBits &= ~stateBits;
 }
 
 //--- New features

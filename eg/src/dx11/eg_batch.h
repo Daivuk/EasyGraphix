@@ -17,8 +17,8 @@ typedef struct
 
 typedef struct
 {
-    float x, y, z;
-    float radius;
+    float x, y, z, w;
+    float radius, multiply, t, s;
     float r, g, b, a;
 } SEGOmni;
 

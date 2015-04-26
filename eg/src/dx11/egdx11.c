@@ -40,14 +40,11 @@ void egClear(uint32_t clearBitFields)
     }
     if (clearBitFields & (EG_CLEAR_COLOR | EG_CLEAR_G_BUFFER))
     {
-        pBoundDevice->pDeviceContext->lpVtbl->ClearRenderTargetView(pBoundDevice->pDeviceContext, pBoundDevice->gBuffer[G_DIFFUSE].pRenderTargetView, pBoundDevice->clearColor);
-    }
-    if (clearBitFields & EG_CLEAR_G_BUFFER)
-    {
         float black[4] = {0, 0, 0, 1};
         float zeroDepth[4] = {0, 0, 0, 0};
-        pBoundDevice->pDeviceContext->lpVtbl->ClearRenderTargetView(pBoundDevice->pDeviceContext, pBoundDevice->gBuffer[G_NORMAL].pRenderTargetView, black);
+        pBoundDevice->pDeviceContext->lpVtbl->ClearRenderTargetView(pBoundDevice->pDeviceContext, pBoundDevice->gBuffer[G_DIFFUSE].pRenderTargetView, pBoundDevice->clearColor);
         pBoundDevice->pDeviceContext->lpVtbl->ClearRenderTargetView(pBoundDevice->pDeviceContext, pBoundDevice->gBuffer[G_MATERIAL].pRenderTargetView, black);
+        pBoundDevice->pDeviceContext->lpVtbl->ClearRenderTargetView(pBoundDevice->pDeviceContext, pBoundDevice->gBuffer[G_NORMAL].pRenderTargetView, black);
         pBoundDevice->pDeviceContext->lpVtbl->ClearRenderTargetView(pBoundDevice->pDeviceContext, pBoundDevice->gBuffer[G_DEPTH].pRenderTargetView, zeroDepth);
     }
 }
@@ -302,30 +299,4 @@ void egBindMaterial(EGTexture texture)
     }
     if (texture > pBoundDevice->textureCount) return;
     pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 2, 1, &pBoundDevice->textures[texture - 1].pResourceView);
-}
-
-void egPostProcess()
-{
-    if (pBoundDevice->bIsInBatch) return;
-    if (!pBoundDevice) return;
-    beginPostProcessPass();
-
-    float white[4] = {1, 1, 1, 1};
-    //pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->gBuffer[G_DIFFUSE].texture.pResourceView);
-    //drawScreenQuad(-1, 1, 0, 0, white);
-
-    //pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->gBuffer[G_MATERIAL].texture.pResourceView);
-    //drawScreenQuad(0, 1, 1, 0, white);
-
-    //pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->gBuffer[G_NORMAL].texture.pResourceView);
-    //drawScreenQuad(-1, 0, 0, -1, white);
-
-    //pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->accumulationBuffer.texture.pResourceView);
-    //drawScreenQuad(0, 0, 1, -1, white);
-
-    pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->accumulationBuffer.texture.pResourceView);
-    drawScreenQuad(-1, 1, 1, -1, white);
-
-    //pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->gBuffer[G_DIFFUSE].texture.pResourceView);
-    //drawScreenQuad(-1, 1, 1, -1, white);
 }

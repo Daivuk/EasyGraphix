@@ -1,83 +1,87 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <Filter Include="Source Files">
-      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
-      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    <Filter Include="src">
+      <UniqueIdentifier>{55c5e78f-0046-4b7f-b87f-8a92819020b3}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Header Files">
-      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
-      <Extensions>h;hh;hpp;hxx;hm;inl;inc;xsd</Extensions>
+    <Filter Include="shared">
+      <UniqueIdentifier>{65ec636d-8ade-429d-a46d-8b3535e45a61}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="egdx11.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="eg_state.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\shared\eg_math.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="eg_shaders.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="eg_texture.c">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="eg_batch.c">
+      <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="eg_device.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="eg_rt.c">
-      <Filter>Source Files</Filter>
+      <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="eg_pass.c">
-      <Filter>Source Files</Filter>
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="eg_post.c">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="eg_rt.c">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="eg_shaders.c">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="eg_state.c">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="eg_texture.c">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="egdx11.c">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\shared\eg_math.c">
+      <Filter>shared</Filter>
     </ClCompile>
     <ClCompile Include="..\shared\eg_error.c">
-      <Filter>Source Files</Filter>
+      <Filter>shared</Filter>
     </ClCompile>
     <ClCompile Include="..\shared\eg_prim.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="eg_batch.c">
-      <Filter>Source Files</Filter>
+      <Filter>shared</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\include\eg.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="eg_state.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\shared\eg_math.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="eg_shaders.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="eg_texture.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="eg_device.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="eg_rt.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="eg_pass.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\shared\eg_error.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\shared\eg_prim.h">
-      <Filter>Header Files</Filter>
+      <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="eg_batch.h">
-      <Filter>Header Files</Filter>
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="eg_device.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="eg_pass.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="eg_post.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="eg_rt.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="eg_shaders.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="eg_state.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\eg.h">
+      <Filter>shared</Filter>
+    </ClInclude>
+    <ClInclude Include="..\shared\eg_math.h">
+      <Filter>shared</Filter>
+    </ClInclude>
+    <ClInclude Include="..\shared\eg_error.h">
+      <Filter>shared</Filter>
+    </ClInclude>
+    <ClInclude Include="..\shared\eg_prim.h">
+      <Filter>shared</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
