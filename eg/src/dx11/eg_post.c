@@ -38,13 +38,15 @@ void drawScreenQuad(float left, float top, float right, float bottom, float *pCo
     pBoundDevice->pDeviceContext->lpVtbl->Draw(pBoundDevice->pDeviceContext, 4, 0);
 }
 
+#define CHAIN_DOWNSAMPLING
+
 uint32_t blur(float spread)
 {
     uint32_t blurId = 0;
-    while (spread > 8 && blurId < 8)
+    while (spread > 8 && blurId < 7)
     {
         blurId++;
-        spread /= 2.f;
+        spread /= 2.0f;
     }
 
     float scale;
@@ -55,39 +57,62 @@ uint32_t blur(float spread)
     pBoundDevice->pCBBlurSpread->lpVtbl->QueryInterface(pBoundDevice->pCBBlurSpread, &IID_ID3D11Resource, &pRes);
 
     pBoundDevice->pDeviceContext->lpVtbl->PSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pPSPassThrough, NULL, 0);
+#ifdef CHAIN_DOWNSAMPLING
     for (uint32_t i = 0; i <= blurId; ++i)
+#else
+    for (uint32_t i = blurId; i <= blurId; ++i)
+#endif
     {
         scale = 1.0f / (float)pow(2, (double)i);
 
-        // Update the constant buffer
-        if (i < blurId)
-        {
-            blurSpread[0] = 1.0f / (float)pBoundDevice->blurBuffers[i][0].texture.w * (1.f / 2.0f);
-            blurSpread[1] = 1.0f / (float)pBoundDevice->blurBuffers[i][0].texture.h * (1.f / 2.0f);
-        }
-        else
-        {
-            blurSpread[0] = 1.0f / (float)pBoundDevice->blurBuffers[blurId][0].texture.w * (spread / 8.0f);
-            blurSpread[1] = 1.0f / (float)pBoundDevice->blurBuffers[blurId][0].texture.h * (spread / 8.0f);
-        }
-
-        D3D11_MAPPED_SUBRESOURCE map;
-        pBoundDevice->pDeviceContext->lpVtbl->Map(pBoundDevice->pDeviceContext, pRes, 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
-        memcpy(map.pData, blurSpread, 16);
-        pBoundDevice->pDeviceContext->lpVtbl->Unmap(pBoundDevice->pDeviceContext, pRes, 0);
-        pBoundDevice->pDeviceContext->lpVtbl->PSSetConstantBuffers(pBoundDevice->pDeviceContext, 3, 1, &pBoundDevice->pCBBlurSpread);
-
         // Downscale
+#ifdef CHAIN_DOWNSAMPLING
         if (i < blurId)
         {
             scale = 1.0f / (float)pow(2, (double)(i + 1));
             pBoundDevice->pDeviceContext->lpVtbl->PSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pPSPassThrough, NULL, 0);
             pBoundDevice->pDeviceContext->lpVtbl->OMSetRenderTargets(pBoundDevice->pDeviceContext, 1, &pBoundDevice->blurBuffers[i + 1][0].pRenderTargetView, NULL);
             pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->blurBuffers[i][0].texture.pResourceView);
-            drawScreenQuad(-1, 1, -1 + 2 * scale, 1 - 2 * scale, white);
-        }
-        else
+#else
+        if (i)
         {
+            pBoundDevice->pDeviceContext->lpVtbl->PSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pPSPassThrough, NULL, 0);
+            pBoundDevice->pDeviceContext->lpVtbl->OMSetRenderTargets(pBoundDevice->pDeviceContext, 1, &pBoundDevice->blurBuffers[i][0].pRenderTargetView, NULL);
+            pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->blurBuffers[0][0].texture.pResourceView);
+#endif
+
+            // This is some magic right there! Because resolution might not always end up in base 2 when down sampled.
+            // Mostly for windowed mode.
+            float wOffset = 1.f;
+            float hOffset = 1.f;
+            if (pBoundDevice->blurBuffers[i + 1][0].texture.w * 2 < pBoundDevice->blurBuffers[i][0].texture.w)
+            {
+                wOffset = 1.f - 1.f / (float)pBoundDevice->blurBuffers[i + 1][0].texture.w * 
+                    (float)(pBoundDevice->blurBuffers[i][0].texture.w - pBoundDevice->blurBuffers[i + 1][0].texture.w * 2);
+            }
+            if (pBoundDevice->blurBuffers[i + 1][0].texture.h * 2 < pBoundDevice->blurBuffers[i][0].texture.h)
+            {
+                hOffset = 1.f - 1.f / (float)pBoundDevice->blurBuffers[i + 1][0].texture.h *
+                    (float)(pBoundDevice->blurBuffers[i][0].texture.h - pBoundDevice->blurBuffers[i + 1][0].texture.h * 2);
+            }
+            drawScreenQuad(-1, 1,
+                           -1 + 2 * (scale * wOffset),
+                           1 - 2 * (scale * hOffset),
+                           white);
+        }
+#ifdef CHAIN_DOWNSAMPLING
+        else
+#endif
+        {
+            // Update the constant buffer
+            blurSpread[0] = 1.0f / (float)pBoundDevice->blurBuffers[blurId][0].texture.w * (spread / 8.0f);
+            blurSpread[1] = 1.0f / (float)pBoundDevice->blurBuffers[blurId][0].texture.h * (spread / 8.0f);
+            D3D11_MAPPED_SUBRESOURCE map;
+            pBoundDevice->pDeviceContext->lpVtbl->Map(pBoundDevice->pDeviceContext, pRes, 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
+            memcpy(map.pData, blurSpread, 16);
+            pBoundDevice->pDeviceContext->lpVtbl->Unmap(pBoundDevice->pDeviceContext, pRes, 0);
+            pBoundDevice->pDeviceContext->lpVtbl->PSSetConstantBuffers(pBoundDevice->pDeviceContext, 3, 1, &pBoundDevice->pCBBlurSpread);
+
             // Blur H
             pBoundDevice->pDeviceContext->lpVtbl->PSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pPSBlurH, NULL, 0);
             pBoundDevice->pDeviceContext->lpVtbl->OMSetRenderTargets(pBoundDevice->pDeviceContext, 1, &pBoundDevice->blurBuffers[i][1].pRenderTargetView, NULL);

@@ -197,6 +197,51 @@ const char *g_psLDR = MULTILINE(
     }
 );
 
+#define GAUSSIAN_BLUR
+
+#ifdef GAUSSIAN_BLUR
+#define BLUR_HEADER \
+"cbuffer AlphaTestRefCB : register(b3)" \
+"{" \
+"    float4 blurSpread;" \
+"}" \
+"Texture2D xDiffuse : register(t0);" \
+"SamplerState sSampler : register(s0);" \
+"struct sInput" \
+"{" \
+"    float4 position : SV_POSITION;" \
+"    float2 texCoord : TEXCOORD;" \
+"    float4 color : COLOR;" \
+"};" \
+"static const float BlurWeights[17] =" \
+"{" \
+"    0.003924, 0.008962, 0.018331, 0.033585, 0.055119, 0.081029, 0.106701, 0.125858, 0.13298, 0.125858, 0.106701, 0.081029, 0.055119, 0.033585, 0.018331, 0.008962, 0.003924" \
+"};"
+
+const char *g_psBlurH = BLUR_HEADER MULTILINE(
+    float4 main(sInput input):SV_TARGET
+    {
+        float4 xdiffuse = float4(0, 0, 0, 0);
+        for (int i = -8; i <= 8; ++i)
+        {
+            xdiffuse += xDiffuse.Sample(sSampler, input.texCoord + float2(blurSpread.x * i, 0)) * BlurWeights[i + 8];
+        }
+        return xdiffuse * input.color;
+    }
+);
+
+const char *g_psBlurV = BLUR_HEADER MULTILINE(
+    float4 main(sInput input):SV_TARGET
+    {
+        float4 xdiffuse = float4(0, 0, 0, 0);
+        for (int i = -8; i <= 8; ++i)
+        {
+            xdiffuse += xDiffuse.Sample(sSampler, input.texCoord + float2(0, blurSpread.y * i)) * BlurWeights[i + 8];
+        }
+        return xdiffuse * input.color;
+    }
+);
+#else
 const char *g_psBlurH = MULTILINE(
     cbuffer AlphaTestRefCB:register(b3)
     {
@@ -254,6 +299,7 @@ const char *g_psBlurV = MULTILINE(
         return xdiffuse * input.color;
     }
 );
+#endif
 
 const char *g_psToneMap = MULTILINE(
     Texture2D xHdr : register(t0);

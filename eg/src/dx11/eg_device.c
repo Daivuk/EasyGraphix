@@ -436,8 +436,10 @@ EGDevice egCreateDevice(HWND windowHandle)
         UINT divider = (UINT)pow(2, (double)i);
         for (int k = 0; k < 2; ++k)
         {
+            UINT w = pBoundDevice->backBufferDesc.Width / divider;
+            UINT h = pBoundDevice->backBufferDesc.Height / divider;
             result = createRenderTarget(&pBoundDevice->blurBuffers[i][k],
-                                        pBoundDevice->backBufferDesc.Width / divider, pBoundDevice->backBufferDesc.Height / divider,
+                                        w, h,
                                         DXGI_FORMAT_R8G8B8A8_UNORM);
             if (result != S_OK)
             {

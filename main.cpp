@@ -86,20 +86,21 @@ void draw()
     // Setup 3d states
     egEnable(EG_DEPTH_TEST);
     egEnable(EG_CULL);
-    egEnable(EG_HDR | EG_BLOOM/* | EG_BLUR*/);
+    egEnable(/*EG_HDR | EG_BLOOM |*/ EG_BLUR);
 
     // Draw shit up
     static float rotation = 0.f;
     rotation += 1.f;
-    egBlur((sinf(rotation * 3.1415f / 180.f) * .5f + .5f) * 64.f);
+    egBlur((sinf(rotation * 3.1415f / 180.f) * .5f + .5f) * 256.f);
 
     egColor3(1, 1, 1);
     egBindDiffuse(diffuseFloor);
     egBindNormal(normalFloor);
     egBindMaterial(materialFloor);
+    egEnable(EG_SHADOW);
     egModelPush();
     {
-        egModelTranslate(0, 0, -2.5);
+        egModelTranslate(0, 0, -1.5);
         egTangent(1, 0, 0);
         egBinormal(0, -1, 0);
         egNormal(0, 0, 1);
@@ -144,68 +145,74 @@ void draw()
     egBegin(EG_OMNIS);
     {
         egFalloffExponent(1);
-        egMultiply(1);
-        egRadius(40);
+        egMultiply(3);
+        egRadius(100);
 
         egColor3(1, .75f, .5f);
-        egPosition3(-15, 15, 10); // This will render the light
+        egPosition3(-15, 15, 20); // This will render the light
+    }
+    egEnd();
+    egDisable(EG_SHADOW);
 
+    egBegin(EG_OMNIS);
+    {
+        egRadius(40);
         egColor3(.5f, .75f, 1);
         egPosition3(15, -15, 10);
 
-        egRadius(10);
+        //egRadius(10);
 
-        egMultiply(10);
-        egColor3(.5f, .75f, 1);
-        egPosition3(0, -4, -2.0f); // This will render the light
+        //egMultiply(10);
+        //egColor3(.5f, .75f, 1);
+        //egPosition3(0, -4, -2.0f); // This will render the light
 
-        egMultiply(3);
-        egColor3(1, .75f, .5f);
-        egPosition3(-4, 0, -2.0f); // This will render the light
+        //egMultiply(3);
+        //egColor3(1, .75f, .5f);
+        //egPosition3(-4, 0, -2.0f); // This will render the light
 
-        egMultiply(10);
-        egColor3(.75f, .5f, 1);
-        egPosition3(5, 20, -2.0f); // This will render the light
+        //egMultiply(10);
+        //egColor3(.75f, .5f, 1);
+        //egPosition3(5, 20, -2.0f); // This will render the light
+    }
+    egEnd();
+    /*
+    egSet2DViewProj(-999, 999);
+    egDisable(EG_DEPTH_TEST);
+    egDisable(EG_CULL);
+    egBindDiffuse(0);
+    egBindNormal(0);
+    egBindMaterial(0);
+    egColor3(1, 1, 1);
+    egBegin(EG_QUADS);
+    {
+        egPosition2(100, 100);
+        egPosition2(100, 100 + 16);
+        egPosition2(100 + 16, 100 + 16);
+        egPosition2(100 + 16, 100);
+
+        egPosition2(200, 100);
+        egPosition2(200, 100 + 32);
+        egPosition2(200 + 32, 100 + 32);
+        egPosition2(200 + 32, 100);
+
+        egPosition2(400, 100);
+        egPosition2(400, 100 + 64);
+        egPosition2(400 + 64, 100 + 64);
+        egPosition2(400 + 64, 100);
+
+        egPosition2(800, 100);
+        egPosition2(800, 100 + 128);
+        egPosition2(800 + 128, 100 + 128);
+        egPosition2(800 + 128, 100);
     }
     egEnd();
 
-    //egSet2DViewProj(-999, 999);
-    //egDisable(EG_DEPTH_TEST);
-    //egDisable(EG_CULL);
-    //egBindDiffuse(0);
-    //egBindNormal(0);
-    //egBindMaterial(0);
-    //egColor3(1, 1, 1);
-    //egBegin(EG_QUADS);
-    //{
-    //    egPosition2(100, 100);
-    //    egPosition2(100, 100 + 16);
-    //    egPosition2(100 + 16, 100 + 16);
-    //    egPosition2(100 + 16, 100);
-
-    //    egPosition2(200, 100);
-    //    egPosition2(200, 100 + 32);
-    //    egPosition2(200 + 32, 100 + 32);
-    //    egPosition2(200 + 32, 100);
-
-    //    egPosition2(400, 100);
-    //    egPosition2(400, 100 + 64);
-    //    egPosition2(400 + 64, 100 + 64);
-    //    egPosition2(400 + 64, 100);
-
-    //    egPosition2(800, 100);
-    //    egPosition2(800, 100 + 128);
-    //    egPosition2(800 + 128, 100 + 128);
-    //    egPosition2(800 + 128, 100);
-    //}
-    //egEnd();
-
-    //egBegin(EG_AMBIENTS);
-    //{
-    //    egColor3(1, 1, 1); // This will render an ambient pass
-    //}
-    //egEnd();
-
+    egBegin(EG_AMBIENTS);
+    {
+        egColor3(1, 1, 1); // This will render an ambient pass
+    }
+    egEnd();
+    */
     // Post process and swap
     egPostProcess();
     egSwap();
