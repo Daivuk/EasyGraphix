@@ -76,10 +76,12 @@ typedef struct
 
     // States
     uint32_t                    viewPort[4];
-    SEGState                    states[MAX_STACK];
+    SEGState                    stateStack[MAX_STACK];
     uint32_t                    statesStackCount;
     float                       clearColor[4];
     EG_PASS                     pass;
+    SEGState                   *states;
+    uint32_t                    stateCount;
 
     // Batching
     BOOL                        bIsInBatch;

@@ -264,4 +264,3 @@ EGTexture egCreateCubeMap(uint32_t dimension, const void *pData, EGFormat dataFo
 void egDestroyTexture(EGTexture *pTexture)
 {
 }
-

@@ -15,10 +15,15 @@ EGTexture   diffuseFloor;
 EGTexture   normalFloor;
 EGTexture   materialFloor;
 EGTexture   alphaTest;
+EGState     state3d;
+EGState     state2d;
+
 void init()
 {
+    // Create device
     device = egCreateDevice(windowHandle);
 
+    // Load textures
     unsigned int w, h;
     {
         std::vector<unsigned char> image;
@@ -62,6 +67,19 @@ void init()
         assert(!ret);
         alphaTest = egCreateTexture2D(w, h, image.data(), EG_U8 | EG_RGBA, EG_GENERATE_MIPMAPS);
     }
+
+    // Create state objects
+    egDisable(EG_ALL);
+    egEnable(EG_DEPTH_TEST | EG_DEPTH_WRITE | EG_CULL);
+    egEnable(EG_LIGHTING);
+    egEnable(EG_HDR | EG_BLOOM/* | EG_BLUR*/);
+    egBlur(64);
+    state3d = egCreateState();
+
+    egDisable(EG_ALL);
+    egEnable(EG_BLUR);
+    egBlur(8);
+    state2d = egCreateState();
 }
 
 void shutdown()
@@ -84,20 +102,16 @@ void draw()
     egSet3DViewProj(-5, -5, 3, 0, 0, -2, 0, 0, 1, 70, .1f, 10000.f);
 
     // Setup 3d states
-    egEnable(EG_DEPTH_TEST | EG_CULL);
-    egEnable(EG_LIGHTING);
-    egEnable(EG_HDR | EG_BLOOM | EG_BLUR);
+    egBindState(state3d);
 
     // Draw shit up
     static float rotation = 0.f;
     rotation += 1.f;
-    egBlur(16);
 
     egColor3(1, 1, 1);
     egBindDiffuse(diffuseFloor);
     egBindNormal(normalFloor);
     egBindMaterial(materialFloor);
-    egEnable(EG_SHADOW);
     egModelPush();
     {
         egModelTranslate(0, 0, -1.5);
@@ -152,7 +166,6 @@ void draw()
         egPosition3(-15, 15, 20); // This will render the light
     }
     egEnd();
-    egDisable(EG_SHADOW);
 
     egBegin(EG_OMNIS);
     {
@@ -177,29 +190,34 @@ void draw()
     egEnd();
     egPostProcess();
     
+#if 1
     egSet2DViewProj(-999, 999);
-    egDisable(EG_ALL);
+    egBindState(state2d);
     egBindDiffuse(0);
     egBindNormal(0);
     egBindMaterial(0);
     egColor3(1, 1, 1);
     egBegin(EG_QUADS);
     {
+        egColor3(1, 0, 0);
         egPosition2(100, 100);
         egPosition2(100, 100 + 16);
         egPosition2(100 + 16, 100 + 16);
         egPosition2(100 + 16, 100);
 
+        egColor3(0, 1, 0);
         egPosition2(200, 100);
         egPosition2(200, 100 + 32);
         egPosition2(200 + 32, 100 + 32);
         egPosition2(200 + 32, 100);
 
+        egColor3(0, 0, 1);
         egPosition2(400, 100);
         egPosition2(400, 100 + 64);
         egPosition2(400 + 64, 100 + 64);
         egPosition2(400 + 64, 100);
 
+        egColor3(1, 1, 0);
         egPosition2(800, 100);
         egPosition2(800, 100 + 128);
         egPosition2(800 + 128, 100 + 128);
@@ -207,6 +225,7 @@ void draw()
     }
     egEnd();
     egPostProcess();
+#endif
 
     egSwap();
 }

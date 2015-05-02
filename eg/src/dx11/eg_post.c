@@ -137,7 +137,7 @@ void egPostProcess()
     if (pBoundDevice->bIsInBatch) return;
     if (!pBoundDevice) return;
     beginPostProcessPass();
-    SEGState *pState = pBoundDevice->states + pBoundDevice->statesStackCount;
+    SEGState *pState = pBoundDevice->stateStack + pBoundDevice->statesStackCount;
 
     float white[4] = {1, 1, 1, 1};
 
@@ -155,6 +155,8 @@ void egPostProcess()
     pBoundDevice->pDevice->lpVtbl->CreateSamplerState(pBoundDevice->pDevice, &sampler, &pSs);
     pBoundDevice->pDeviceContext->lpVtbl->PSSetSamplers(pBoundDevice->pDeviceContext, 0, 1, &pSs);
     pSs->lpVtbl->Release(pSs);
+
+    egStatePush();
 
     egDisable(EG_BLEND);
     updateState();
@@ -209,6 +211,10 @@ void egPostProcess()
     }
     else
     {
+        egEnable(EG_BLEND);
+        egBlendFunc(EG_SRC_ALPHA, EG_ONE_MINUS_SRC_ALPHA);
+        updateState();
+
         pBoundDevice->pDeviceContext->lpVtbl->PSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pPSPassThrough, NULL, 0);
         if (pState->enableBits & EG_BLUR)
         {
@@ -216,24 +222,18 @@ void egPostProcess()
         }
         else
         {
-            egStatePush();
-            egEnable(EG_BLEND);
-            egBlendFunc(EG_SRC_ALPHA, EG_ONE_MINUS_SRC_ALPHA);
-            updateState();
-
             pBoundDevice->pDeviceContext->lpVtbl->OMSetRenderTargets(pBoundDevice->pDeviceContext, 1, &pBoundDevice->pRenderTargetView, NULL);
         }
         pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->accumulationBuffer.texture.pResourceView);
         drawScreenQuad(-1, 1, 1, -1, white);
-        if (!(pState->enableBits & EG_BLUR))
-        {
-            egStatePop();
-        }
     }
 
     if (pState->enableBits & EG_BLUR)
     {
-        uint32_t blurId = blur(pState->blurSpread);
+        egDisable(EG_BLEND);
+        updateState();
+
+        uint32_t blurId = blur(pState->blurState.spread);
 
         pBoundDevice->pDeviceContext->lpVtbl->PSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pPSPassThrough, NULL, 0);
         pBoundDevice->pDeviceContext->lpVtbl->OMSetRenderTargets(pBoundDevice->pDeviceContext, 1, &pBoundDevice->pRenderTargetView, NULL);
@@ -244,7 +244,7 @@ void egPostProcess()
     // We clear the accumulation buffer after a post process call
     float black[4] = {0, 0, 0, 0};
     pBoundDevice->pDeviceContext->lpVtbl->ClearRenderTargetView(pBoundDevice->pDeviceContext, pBoundDevice->accumulationBuffer.pRenderTargetView, black);
-    pBoundDevice->pDeviceContext->lpVtbl->ClearRenderTargetView(pBoundDevice->pDeviceContext, pBoundDevice->gBuffer[G_DIFFUSE].pRenderTargetView, black);
+    //pBoundDevice->pDeviceContext->lpVtbl->ClearRenderTargetView(pBoundDevice->pDeviceContext, pBoundDevice->gBuffer[G_DIFFUSE].pRenderTargetView, black);
     //pBoundDevice->pDeviceContext->lpVtbl->ClearRenderTargetView(pBoundDevice->pDeviceContext, pBoundDevice->gBuffer[G_MATERIAL].pRenderTargetView, black);
     //pBoundDevice->pDeviceContext->lpVtbl->ClearRenderTargetView(pBoundDevice->pDeviceContext, pBoundDevice->gBuffer[G_NORMAL].pRenderTargetView, black);
     //pBoundDevice->pDeviceContext->lpVtbl->ClearRenderTargetView(pBoundDevice->pDeviceContext, pBoundDevice->gBuffer[G_DEPTH].pRenderTargetView, black);
@@ -263,4 +263,6 @@ void egPostProcess()
     //drawScreenQuad(0, 0, 1, -1, white);
 
     pBoundDevice->pDeviceContext->lpVtbl->PSSetSamplers(pBoundDevice->pDeviceContext, 0, 1, &pOldSs);
+
+    egStatePop();
 }

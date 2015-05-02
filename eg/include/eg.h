@@ -25,6 +25,11 @@ extern "C"
     */
     typedef uint32_t EGTexture;
 
+    /*! \typedef EGState
+        ID of a state object
+    */
+    typedef uint32_t EGState;
+
     /*! \typedef EGFormat
         Representing a mix of EG_DATA_COMPONENT_COUNT and EG_DATA_TYPE
     */
@@ -1270,6 +1275,28 @@ extern "C"
         \param spread Spread value. 0 will mean no blur.
     */
     void egBlur(float spread);
+
+    /*!
+        Create a state object based on the current state of EasyGraphix.
+        This includes everything in EG_ENABLE bits and their properties.
+
+        \return Created state object, or 0 if failed.
+    */
+    EGState egCreateState();
+
+    /*!
+        Destroy a state
+
+        \param pState Pointer to a state object. It will be set to 0 if successful
+    */
+    void egDestroyState(EGState *pState);
+
+    /*!
+        Bind a state
+
+        \param state State object to bind.
+    */
+    void egBindState(EGState state);
 
 #ifdef __cplusplus
 }       /* extern "C" */

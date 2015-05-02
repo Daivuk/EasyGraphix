@@ -5,40 +5,74 @@
 
 #include <d3d11.h>
 
+typedef enum
+{
+    DIRTY_NONE          = 0x00000000,
+    DIRTY_DEPTH         = 0x00000001,
+    DIRTY_RASTERIZER    = 0x00000002,
+    DIRTY_BLEND         = 0x00000004,
+    DIRTY_SAMPLER       = 0x00000008,
+    DIRTY_ALPHA_TEST    = 0x00000010,
+    DIRTY_LIGHTING      = 0x00000020,
+    DIRTY_ALL           = 0xffffffff
+} DIRTY_BITS;
+
 typedef struct
 {
-    // Depth stencil
-    D3D11_DEPTH_STENCIL_DESC    depth;
-    BOOL                        depthDirty;
+    D3D11_DEPTH_STENCIL_DESC    desc;
+    ID3D11DepthStencilState    *pState;
+} SEGDepthState;
 
-    // Rasterizer
-    D3D11_RASTERIZER_DESC       rasterizer;
-    BOOL                        rasterizerDirty;
+typedef struct
+{
+    D3D11_RASTERIZER_DESC       desc;
+    ID3D11RasterizerState      *pState;
+} SEGRasterizerState;
 
-    // Blending
-    D3D11_BLEND_DESC            blend;
-    BOOL                        blendDirty;
+typedef struct
+{
+    D3D11_BLEND_DESC            desc;
+    ID3D11BlendState           *pState;
+} SEGBlendState;
 
-    // Texture sampler
-    D3D11_SAMPLER_DESC          sampler;
-    BOOL                        samplerDirty;
+typedef struct
+{
+    D3D11_SAMPLER_DESC          desc;
+    ID3D11SamplerState         *pState;
+} SEGSamplerState;
 
-    // Alpha test
-    EG_COMPARE                  alphaTestFunc;
-    float                       alphaTestRef[4];
-    BOOL                        alphaTestDirty;
+typedef struct
+{
+    EG_COMPARE                  func;
+    float                       ref;
+    ID3D11Buffer               *pCB;
+} SEGAlphaTestState;
 
-    // Blur
-    float                       blurSpread;
+typedef struct
+{
+    float                       spread;
+} SEGBlurState;
 
-    // Lighting
-    BOOL                        lightingDirty;
-
+typedef struct
+{
     // Current enable bits
     EGEnable                    enableBits;
+
+    // Dirty flags
+    uint32_t                    dirtyBits;
+
+    // States
+    SEGDepthState               depthState;
+    SEGRasterizerState          rasterizerState;
+    SEGBlendState               blendState;
+    SEGSamplerState             samplerState;
+    SEGAlphaTestState           alphaTestState;
+    SEGBlurState                blurState;
+
 } SEGState;
 
 void resetState();
 void updateState();
+void applyStaticState(SEGState *pState);
 
 #endif /* EG_STATE_H_INCLUDED */

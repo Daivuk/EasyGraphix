@@ -260,7 +260,7 @@ void flush()
     }
 
     // Generate Tangents and Binormals
-    SEGState *pState = pBoundDevice->states + pBoundDevice->statesStackCount;
+    SEGState *pState = pBoundDevice->stateStack + pBoundDevice->statesStackCount;
     if (pState->enableBits & EG_GENERATE_TANGENT_BINORMAL)
     {
         generateTangentBinormal();
