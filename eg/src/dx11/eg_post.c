@@ -121,8 +121,10 @@ uint32_t blur(float spread, uint32_t startId)
 
             // Blur V
             pBoundDevice->pDeviceContext->lpVtbl->PSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pPSBlurV, NULL, 0);
-            pBoundDevice->pDeviceContext->lpVtbl->OMSetRenderTargets(pBoundDevice->pDeviceContext, 1, &pBoundDevice->blurBuffers[i][0].pRenderTargetView, NULL);
+            ID3D11RenderTargetView *pNullRTV = NULL;
+            pBoundDevice->pDeviceContext->lpVtbl->OMSetRenderTargets(pBoundDevice->pDeviceContext, 1, &pNullRTV, NULL);
             pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->blurBuffers[i][1].texture.pResourceView);
+            pBoundDevice->pDeviceContext->lpVtbl->OMSetRenderTargets(pBoundDevice->pDeviceContext, 1, &pBoundDevice->blurBuffers[i][0].pRenderTargetView, NULL);
             drawScreenQuad(-1, 1, -1 + 2 * scale, 1 - 2 * scale, white);
         }
     }

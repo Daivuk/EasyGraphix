@@ -15,6 +15,26 @@ void beginGeometryPass()
 
     if (pState->enableBits & EG_LIGHTING)
     {
+        // This is a hack because DX11 throw warnings if they are still attached. But it's silly
+        // because if my Pixel shader doesn't make use of them, it shouldn't complain...
+        // Will DX12 fix that?
+        for (UINT i = 0; i < 4; ++i)
+        {
+            ID3D11ShaderResourceView *pTexture;
+            pBoundDevice->pDeviceContext->lpVtbl->PSGetShaderResources(pBoundDevice->pDeviceContext, i, 1, &pTexture);
+            if (pTexture)
+            {
+                if (pTexture == pBoundDevice->gBuffer[G_DIFFUSE].texture.pResourceView ||
+                    pTexture == pBoundDevice->gBuffer[G_DEPTH].texture.pResourceView ||
+                    pTexture == pBoundDevice->gBuffer[G_NORMAL].texture.pResourceView ||
+                    pTexture == pBoundDevice->gBuffer[G_MATERIAL].texture.pResourceView)
+                {
+                    pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, i, 1, &pBoundDevice->transparentBlackTexture.pResourceView);
+                }
+                pTexture->lpVtbl->Release(pTexture);
+            }
+        }
+
         // Bind G-Buffer
         ID3D11RenderTargetView *gBuffer[4] = {
             pBoundDevice->gBuffer[G_DIFFUSE].pRenderTargetView,
@@ -40,6 +60,7 @@ void beginAmbientPass()
     egBindState(pBoundDevice->passStates[EG_AMBIENT_PASS]);
 
     pBoundDevice->pDeviceContext->lpVtbl->IASetPrimitiveTopology(pBoundDevice->pDeviceContext, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+
     pBoundDevice->pDeviceContext->lpVtbl->OMSetRenderTargets(pBoundDevice->pDeviceContext, 1, &pBoundDevice->accumulationBuffer.pRenderTargetView, NULL);
     pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->gBuffer[G_DIFFUSE].texture.pResourceView);
     pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 3, 1, &pBoundDevice->gBuffer[G_MATERIAL].texture.pResourceView);
@@ -82,5 +103,4 @@ void beginPostProcessPass()
     pBoundDevice->pDeviceContext->lpVtbl->IASetPrimitiveTopology(pBoundDevice->pDeviceContext, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
     pBoundDevice->pDeviceContext->lpVtbl->IASetInputLayout(pBoundDevice->pDeviceContext, pBoundDevice->pInputLayoutPassThrough);
     pBoundDevice->pDeviceContext->lpVtbl->VSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pVSPassThrough, NULL, 0);
-
 }
