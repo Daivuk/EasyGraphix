@@ -82,6 +82,8 @@ typedef struct
     EG_PASS                     pass;
     SEGState                   *states;
     uint32_t                    stateCount;
+    EGState                     passStates[EG_PASS_COUNT];
+    int                         postProcessCount;
 
     // Batching
     BOOL                        bIsInBatch;

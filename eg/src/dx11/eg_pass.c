@@ -56,6 +56,8 @@ void beginAmbientPass()
     if (pBoundDevice->pass == EG_AMBIENT_PASS) return;
     pBoundDevice->pass = EG_AMBIENT_PASS;
 
+    egBindState(pBoundDevice->passStates[EG_AMBIENT_PASS]);
+
     pBoundDevice->pDeviceContext->lpVtbl->IASetPrimitiveTopology(pBoundDevice->pDeviceContext, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
     pBoundDevice->pDeviceContext->lpVtbl->OMSetRenderTargets(pBoundDevice->pDeviceContext, 1, &pBoundDevice->accumulationBuffer.pRenderTargetView, NULL);
     pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->gBuffer[G_DIFFUSE].texture.pResourceView);
@@ -64,10 +66,6 @@ void beginAmbientPass()
     pBoundDevice->pDeviceContext->lpVtbl->IASetInputLayout(pBoundDevice->pDeviceContext, pBoundDevice->pInputLayoutPassThrough);
     pBoundDevice->pDeviceContext->lpVtbl->VSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pVSPassThrough, NULL, 0);
     pBoundDevice->pDeviceContext->lpVtbl->PSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pPSAmbient, NULL, 0);
-
-    egEnable(EG_BLEND);
-    egBlendFunc(EG_ONE, EG_ONE);
-    updateState();
 }
 
 void beginOmniPass()
@@ -76,6 +74,8 @@ void beginOmniPass()
     if (!pBoundDevice) return;
     if (pBoundDevice->pass == EG_OMNI_PASS) return;
     pBoundDevice->pass = EG_OMNI_PASS;
+
+    egBindState(pBoundDevice->passStates[EG_OMNI_PASS]);
 
     pBoundDevice->pDeviceContext->lpVtbl->IASetPrimitiveTopology(pBoundDevice->pDeviceContext, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
     pBoundDevice->pDeviceContext->lpVtbl->OMSetRenderTargets(pBoundDevice->pDeviceContext, 1, &pBoundDevice->accumulationBuffer.pRenderTargetView, NULL);
@@ -87,10 +87,6 @@ void beginOmniPass()
     pBoundDevice->pDeviceContext->lpVtbl->IASetInputLayout(pBoundDevice->pDeviceContext, pBoundDevice->pInputLayoutPassThrough);
     pBoundDevice->pDeviceContext->lpVtbl->VSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pVSPassThrough, NULL, 0);
     pBoundDevice->pDeviceContext->lpVtbl->PSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pPSOmni, NULL, 0);
-
-    egEnable(EG_BLEND);
-    egBlendFunc(EG_ONE, EG_ONE);
-    updateState();
 }
 
 void beginPostProcessPass()
@@ -98,11 +94,12 @@ void beginPostProcessPass()
     if (pBoundDevice->bIsInBatch) return;
     if (!pBoundDevice) return;
 
-    if (pBoundDevice->pass == EG_POST_PROCESS_PASS) return;
     pBoundDevice->pass = EG_POST_PROCESS_PASS;
 
-    pBoundDevice->pDeviceContext->lpVtbl->IASetPrimitiveTopology(pBoundDevice->pDeviceContext, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+    egBindState(pBoundDevice->passStates[EG_POST_PROCESS_PASS]);
 
+    pBoundDevice->pDeviceContext->lpVtbl->IASetPrimitiveTopology(pBoundDevice->pDeviceContext, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
     pBoundDevice->pDeviceContext->lpVtbl->IASetInputLayout(pBoundDevice->pDeviceContext, pBoundDevice->pInputLayoutPassThrough);
     pBoundDevice->pDeviceContext->lpVtbl->VSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pVSPassThrough, NULL, 0);
+
 }

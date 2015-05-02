@@ -13,6 +13,7 @@ void egSwap()
     pBoundDevice->pSwapChain->lpVtbl->Present(pBoundDevice->pSwapChain, 1, 0);
     pBoundDevice->worldMatricesStackCount = 0;
     pBoundDevice->statesStackCount = 0;
+    pBoundDevice->postProcessCount = 0;
 }
 
 void egClearColor(float r, float g, float b, float a)

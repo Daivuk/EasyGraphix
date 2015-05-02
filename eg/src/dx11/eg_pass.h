@@ -10,11 +10,12 @@
 
 typedef enum
 {
-    EG_GEOMETRY_PASS        = 0,
-    EG_AMBIENT_PASS         = 1,
-    EG_OMNI_PASS            = 2,
-    EG_SPOT_PASS            = 3,
-    EG_POST_PROCESS_PASS    = 4
+    EG_GEOMETRY_PASS,
+    EG_AMBIENT_PASS,
+    EG_OMNI_PASS,
+    EG_SPOT_PASS,
+    EG_POST_PROCESS_PASS,
+    EG_PASS_COUNT
 } EG_PASS;
 
 void beginGeometryPass();

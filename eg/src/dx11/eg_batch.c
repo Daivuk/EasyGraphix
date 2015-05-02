@@ -76,6 +76,7 @@ void egBegin(EG_MODE mode)
 {
     if (pBoundDevice->bIsInBatch) return;
     if (!pBoundDevice) return;
+    egStatePush();
     bMapVB = TRUE;
     pBoundDevice->currentMode = mode;
     switch (pBoundDevice->currentMode)
@@ -294,6 +295,8 @@ void egEnd()
     {
         pBoundDevice->pDeviceContext->lpVtbl->Unmap(pBoundDevice->pDeviceContext, pBoundDevice->pVertexBufferRes, 0);
     }
+
+    egStatePop();
 }
 
 void egColor3(float r, float g, float b)

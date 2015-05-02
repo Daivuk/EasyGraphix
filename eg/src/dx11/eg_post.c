@@ -40,9 +40,9 @@ void drawScreenQuad(float left, float top, float right, float bottom, float *pCo
 
 #define CHAIN_DOWNSAMPLING
 
-uint32_t blur(float spread)
+uint32_t blur(float spread, uint32_t startId)
 {
-    uint32_t blurId = 0;
+    uint32_t blurId = startId;
     while (spread > 8 && blurId < 7)
     {
         blurId++;
@@ -58,7 +58,7 @@ uint32_t blur(float spread)
 
     pBoundDevice->pDeviceContext->lpVtbl->PSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pPSPassThrough, NULL, 0);
 #ifdef CHAIN_DOWNSAMPLING
-    for (uint32_t i = 0; i <= blurId; ++i)
+    for (uint32_t i = startId; i <= blurId; ++i)
 #else
     for (uint32_t i = blurId; i <= blurId; ++i)
 #endif
@@ -136,104 +136,63 @@ void egPostProcess()
 {
     if (pBoundDevice->bIsInBatch) return;
     if (!pBoundDevice) return;
-    beginPostProcessPass();
+
+    // Prepare states
     SEGState *pState = pBoundDevice->stateStack + pBoundDevice->statesStackCount;
+    egStatePush();
+    beginPostProcessPass();
 
     float white[4] = {1, 1, 1, 1};
+    SEGRenderTarget2D *pCurrentView = &pBoundDevice->accumulationBuffer;
+    ID3D11RenderTargetView *pTargetView = pBoundDevice->pRenderTargetView;
+    SEGTexture2D *pBloomTexture = &pBoundDevice->transparentBlackTexture;
 
-    ID3D11SamplerState *pOldSs = NULL;
-    pBoundDevice->pDeviceContext->lpVtbl->PSGetSamplers(pBoundDevice->pDeviceContext, 0, 1, &pOldSs);
-    D3D11_SAMPLER_DESC sampler;
-    memset(&sampler, 0, sizeof(D3D11_SAMPLER_DESC));
-    sampler.Filter = D3D11_FILTER_MIN_MAG_LINEAR_MIP_POINT;
-    sampler.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
-    sampler.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
-    sampler.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
-    sampler.ComparisonFunc = D3D11_COMPARISON_ALWAYS;
-    sampler.MaxLOD = D3D11_FLOAT32_MAX;
-    ID3D11SamplerState *pSs;
-    pBoundDevice->pDevice->lpVtbl->CreateSamplerState(pBoundDevice->pDevice, &sampler, &pSs);
-    pBoundDevice->pDeviceContext->lpVtbl->PSSetSamplers(pBoundDevice->pDeviceContext, 0, 1, &pSs);
-    pSs->lpVtbl->Release(pSs);
+    // Bloom
+    if (pState->enableBits & EG_HDR && pState->enableBits & EG_BLOOM)
+    {
+        // Render into the bloom
+        pBoundDevice->pDeviceContext->lpVtbl->PSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pPSLDR, NULL, 0);
+        pBoundDevice->pDeviceContext->lpVtbl->OMSetRenderTargets(pBoundDevice->pDeviceContext, 1, &pBoundDevice->blurBuffers[1][0].pRenderTargetView, NULL);
+        pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 0, 1, &pCurrentView->texture.pResourceView);
+        drawScreenQuad(-1, 1, 0, 0, white);
 
-    egStatePush();
+        // Blur it
+        uint32_t blurId = blur(16.f, 1);
+        pBloomTexture = &pBoundDevice->blurBuffers[blurId][0].texture;
+    }
 
-    egDisable(EG_BLEND);
-    updateState();
+    // If we have a blur to do after that, change our target
+    if (pState->enableBits & EG_BLUR)
+    {
+        pTargetView = pBoundDevice->blurBuffers[0][0].pRenderTargetView;
+    }
 
+    // HDR (Tone map + bloom)
     if (pState->enableBits & EG_HDR)
     {
-        if (pState->enableBits & EG_BLOOM)
-        {
-            // Render into the bloom
-            pBoundDevice->pDeviceContext->lpVtbl->PSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pPSLDR, NULL, 0);
-            pBoundDevice->pDeviceContext->lpVtbl->OMSetRenderTargets(pBoundDevice->pDeviceContext, 1, &pBoundDevice->blurBuffers[0][0].pRenderTargetView, NULL);
-            pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->accumulationBuffer.texture.pResourceView);
-            drawScreenQuad(-1, 1, 1, -1, white);
-
-            uint32_t blurId = blur(16.f);
-
-            pBoundDevice->pDeviceContext->lpVtbl->PSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pPSPassThrough, NULL, 0);
-            pBoundDevice->pDeviceContext->lpVtbl->OMSetRenderTargets(pBoundDevice->pDeviceContext, 1, &pBoundDevice->bloomBuffer.pRenderTargetView, NULL);
-            pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->blurBuffers[blurId][0].texture.pResourceView);
-            drawScreenQuad(-1, 1, 1, -1, white);
-
-            // Tonemap
-            pBoundDevice->pDeviceContext->lpVtbl->PSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pPSToneMap, NULL, 0);
-            if (pState->enableBits & EG_BLUR)
-            {
-                pBoundDevice->pDeviceContext->lpVtbl->OMSetRenderTargets(pBoundDevice->pDeviceContext, 1, &pBoundDevice->blurBuffers[0][0].pRenderTargetView, NULL);
-            }
-            else
-            {
-                pBoundDevice->pDeviceContext->lpVtbl->OMSetRenderTargets(pBoundDevice->pDeviceContext, 1, &pBoundDevice->pRenderTargetView, NULL);
-            }
-            pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->accumulationBuffer.texture.pResourceView);
-            pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 1, 1, &pBoundDevice->bloomBuffer.texture.pResourceView);
-            drawScreenQuad(-1, 1, 1, -1, white);
-        }
-        else
-        {
-            // Tonemap with transparent black bloom texture
-            pBoundDevice->pDeviceContext->lpVtbl->PSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pPSToneMap, NULL, 0);
-            if (pState->enableBits & EG_BLUR)
-            {
-                pBoundDevice->pDeviceContext->lpVtbl->OMSetRenderTargets(pBoundDevice->pDeviceContext, 1, &pBoundDevice->blurBuffers[0][0].pRenderTargetView, NULL);
-            }
-            else
-            {
-                pBoundDevice->pDeviceContext->lpVtbl->OMSetRenderTargets(pBoundDevice->pDeviceContext, 1, &pBoundDevice->pRenderTargetView, NULL);
-            }
-            pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->accumulationBuffer.texture.pResourceView);
-            pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 1, 1, &pBoundDevice->transparentBlackTexture.pResourceView);
-            drawScreenQuad(-1, 1, 1, -1, white);
-        }
+        pBoundDevice->pDeviceContext->lpVtbl->PSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pPSToneMap, NULL, 0);
+        pBoundDevice->pDeviceContext->lpVtbl->OMSetRenderTargets(pBoundDevice->pDeviceContext, 1, &pTargetView, NULL);
+        pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 0, 1, &pCurrentView->texture.pResourceView);
+        pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 1, 1, &pBloomTexture->pResourceView);
+        drawScreenQuad(-1, 1, 1, -1, white);
     }
-    else
+    else if (pState->enableBits & EG_BLUR)
     {
-        egEnable(EG_BLEND);
-        egBlendFunc(EG_SRC_ALPHA, EG_ONE_MINUS_SRC_ALPHA);
-        updateState();
-
         pBoundDevice->pDeviceContext->lpVtbl->PSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pPSPassThrough, NULL, 0);
-        if (pState->enableBits & EG_BLUR)
-        {
-            pBoundDevice->pDeviceContext->lpVtbl->OMSetRenderTargets(pBoundDevice->pDeviceContext, 1, &pBoundDevice->blurBuffers[0][0].pRenderTargetView, NULL);
-        }
-        else
-        {
-            pBoundDevice->pDeviceContext->lpVtbl->OMSetRenderTargets(pBoundDevice->pDeviceContext, 1, &pBoundDevice->pRenderTargetView, NULL);
-        }
-        pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->accumulationBuffer.texture.pResourceView);
+        pBoundDevice->pDeviceContext->lpVtbl->OMSetRenderTargets(pBoundDevice->pDeviceContext, 1, &pTargetView, NULL);
+        pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 0, 1, &pCurrentView->texture.pResourceView);
         drawScreenQuad(-1, 1, 1, -1, white);
     }
 
+    // Do the blur
     if (pState->enableBits & EG_BLUR)
     {
-        egDisable(EG_BLEND);
-        updateState();
+        uint32_t blurId = blur(pState->blurState.spread, 0);
 
-        uint32_t blurId = blur(pState->blurState.spread);
+        if (pBoundDevice->postProcessCount && pState->enableBits & EG_BLEND)
+        {
+            updateBlendState(pState);
+        }
 
         pBoundDevice->pDeviceContext->lpVtbl->PSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pPSPassThrough, NULL, 0);
         pBoundDevice->pDeviceContext->lpVtbl->OMSetRenderTargets(pBoundDevice->pDeviceContext, 1, &pBoundDevice->pRenderTargetView, NULL);
@@ -241,13 +200,23 @@ void egPostProcess()
         drawScreenQuad(-1, 1, 1, -1, white);
     }
 
+    // If non of the above were enabled, just render to the main directly
+    if (!(pState->enableBits & EG_HDR) && !(pState->enableBits & EG_BLUR))
+    {
+        if (pBoundDevice->postProcessCount && pState->enableBits & EG_BLEND)
+        {
+            updateBlendState(pState);
+        }
+
+        pBoundDevice->pDeviceContext->lpVtbl->PSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pPSPassThrough, NULL, 0);
+        pBoundDevice->pDeviceContext->lpVtbl->OMSetRenderTargets(pBoundDevice->pDeviceContext, 1, &pTargetView, NULL);
+        pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 0, 1, &pCurrentView->texture.pResourceView);
+        drawScreenQuad(-1, 1, 1, -1, white);
+    }
+
     // We clear the accumulation buffer after a post process call
     float black[4] = {0, 0, 0, 0};
-    pBoundDevice->pDeviceContext->lpVtbl->ClearRenderTargetView(pBoundDevice->pDeviceContext, pBoundDevice->accumulationBuffer.pRenderTargetView, black);
-    //pBoundDevice->pDeviceContext->lpVtbl->ClearRenderTargetView(pBoundDevice->pDeviceContext, pBoundDevice->gBuffer[G_DIFFUSE].pRenderTargetView, black);
-    //pBoundDevice->pDeviceContext->lpVtbl->ClearRenderTargetView(pBoundDevice->pDeviceContext, pBoundDevice->gBuffer[G_MATERIAL].pRenderTargetView, black);
-    //pBoundDevice->pDeviceContext->lpVtbl->ClearRenderTargetView(pBoundDevice->pDeviceContext, pBoundDevice->gBuffer[G_NORMAL].pRenderTargetView, black);
-    //pBoundDevice->pDeviceContext->lpVtbl->ClearRenderTargetView(pBoundDevice->pDeviceContext, pBoundDevice->gBuffer[G_DEPTH].pRenderTargetView, black);
+    //pBoundDevice->pDeviceContext->lpVtbl->ClearRenderTargetView(pBoundDevice->pDeviceContext, pBoundDevice->accumulationBuffer.pRenderTargetView, black);
 
     // G-Buffer
     //pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->gBuffer[G_DIFFUSE].texture.pResourceView);
@@ -262,7 +231,7 @@ void egPostProcess()
     //pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->accumulationBuffer.texture.pResourceView);
     //drawScreenQuad(0, 0, 1, -1, white);
 
-    pBoundDevice->pDeviceContext->lpVtbl->PSSetSamplers(pBoundDevice->pDeviceContext, 0, 1, &pOldSs);
+    pBoundDevice->postProcessCount++;
 
     egStatePop();
 }

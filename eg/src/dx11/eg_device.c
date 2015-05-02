@@ -443,6 +443,29 @@ EGDevice egCreateDevice(HWND windowHandle)
     }
 
     resetState();
+
+    // Create some internal states
+    {
+        egDisable(EG_ALL);
+        egEnable(EG_BLEND);
+        egBlendFunc(EG_ONE, EG_ONE);
+        pBoundDevice->passStates[EG_AMBIENT_PASS] = egCreateState();
+        pBoundDevice->passStates[EG_OMNI_PASS] = egCreateState();
+    }
+    {
+        egDisable(EG_ALL);
+        egFilter(EG_FILTER_MIN_MAG_LINEAR_MIP_POINT);
+        SEGState *pState = pBoundDevice->stateStack + pBoundDevice->statesStackCount;
+        pState->samplerState.desc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
+        pState->samplerState.desc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
+        pState->samplerState.desc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+        pState->samplerState.desc.ComparisonFunc = D3D11_COMPARISON_ALWAYS;
+        pState->samplerState.desc.MaxLOD = D3D11_FLOAT32_MAX;
+        pBoundDevice->passStates[EG_POST_PROCESS_PASS] = egCreateState();
+    }
+
+    resetState();
+
     return ret;
 }
 

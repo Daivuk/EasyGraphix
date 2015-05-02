@@ -73,6 +73,7 @@ typedef struct
 
 void resetState();
 void updateState();
+void updateBlendState(SEGState *pState);
 void applyStaticState(SEGState *pState);
 
 #endif /* EG_STATE_H_INCLUDED */

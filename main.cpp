@@ -73,12 +73,12 @@ void init()
     egEnable(EG_DEPTH_TEST | EG_DEPTH_WRITE | EG_CULL);
     egEnable(EG_LIGHTING);
     egEnable(EG_HDR | EG_BLOOM/* | EG_BLUR*/);
-    egBlur(64);
+    egBlur(16);
     state3d = egCreateState();
 
     egDisable(EG_ALL);
     egEnable(EG_BLUR);
-    egBlur(8);
+    egBlur(16);
     state2d = egCreateState();
 }
 
@@ -200,30 +200,34 @@ void draw()
     egBegin(EG_QUADS);
     {
         egColor3(1, 0, 0);
-        egPosition2(100, 100);
-        egPosition2(100, 100 + 16);
-        egPosition2(100 + 16, 100 + 16);
-        egPosition2(100 + 16, 100);
+        egPosition2(100, 100 + 300);
+        egPosition2(100, 100 + 16 + 300);
+        egPosition2(100 + 16, 100 + 16 + 300);
+        egPosition2(100 + 16, 100 + 300);
 
         egColor3(0, 1, 0);
-        egPosition2(200, 100);
-        egPosition2(200, 100 + 32);
-        egPosition2(200 + 32, 100 + 32);
-        egPosition2(200 + 32, 100);
+        egPosition2(200, 100 + 300);
+        egPosition2(200, 100 + 32 + 300);
+        egPosition2(200 + 32, 100 + 32 + 300);
+        egPosition2(200 + 32, 100 + 300);
 
         egColor3(0, 0, 1);
-        egPosition2(400, 100);
-        egPosition2(400, 100 + 64);
-        egPosition2(400 + 64, 100 + 64);
-        egPosition2(400 + 64, 100);
+        egPosition2(400, 100 + 300);
+        egPosition2(400, 100 + 64 + 300);
+        egPosition2(400 + 64, 100 + 64 + 300);
+        egPosition2(400 + 64, 100 + 300);
 
         egColor3(1, 1, 0);
-        egPosition2(800, 100);
-        egPosition2(800, 100 + 128);
-        egPosition2(800 + 128, 100 + 128);
-        egPosition2(800 + 128, 100);
+        egPosition2(800, 100 + 300);
+        egPosition2(800, 100 + 128 + 300);
+        egPosition2(800 + 128, 100 + 128 + 300);
+        egPosition2(800 + 128, 100 + 300);
     }
     egEnd();
+
+    egEnable(EG_BLEND);
+    //egBlendFunc(EG_ZERO, EG_SRC_COLOR);
+    egBlendFunc(EG_SRC_ALPHA, EG_ONE_MINUS_SRC_ALPHA);
     egPostProcess();
 #endif
 

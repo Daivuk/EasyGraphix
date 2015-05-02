@@ -170,6 +170,14 @@ void updateState()
     pState->dirtyBits = DIRTY_NONE;
 }
 
+void updateBlendState(SEGState *pState)
+{
+    ID3D11BlendState *pBs2D;
+    pBoundDevice->pDevice->lpVtbl->CreateBlendState(pBoundDevice->pDevice, &pState->blendState.desc, &pBs2D);
+    pBoundDevice->pDeviceContext->lpVtbl->OMSetBlendState(pBoundDevice->pDeviceContext, pBs2D, NULL, 0xffffffff);
+    pBs2D->lpVtbl->Release(pBs2D);
+}
+
 D3D11_BLEND blendFactorToDX(EG_BLEND_FACTOR factor)
 {
     switch (factor)
@@ -428,7 +436,6 @@ void applyStaticState(SEGState *pState)
         i += 9;
     }
     pBoundDevice->pActivePS = pBoundDevice->pPSes[i];
-    pBoundDevice->pDeviceContext->lpVtbl->PSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pActivePS, NULL, 0);
 }
 
 void egBindState(EGState state)
