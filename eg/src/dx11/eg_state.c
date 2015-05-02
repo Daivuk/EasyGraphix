@@ -448,15 +448,15 @@ void egBindState(EGState state)
 }
 
 //--- New features
-//EG_SHADOW = 0x00000800,
+//EG_SHADOW
+
+//--- Partially
+//EG_VIGNETTE
 
 //--- Post process
-//EG_BLOOM = 0x00000080,
-//EG_HDR = 0x00000100,
-//EG_BLUR = 0x00000200,
-//EG_DISTORTION = 0x00001000,
-//EG_AMBIENT_OCCLUSION = 0x00002000
+//EG_DISTORTION,
+//EG_AMBIENT_OCCLUSION
 
 //--- Potential ditch
-//EG_STENCIL_TEST = 0x00000008,
-//EG_BLEND = 0x00000001, // Alpha channel op. Useful?
+//EG_STENCIL_TEST
+//EG_BLEND alpha op

@@ -8,6 +8,37 @@ SEGDevice  *devices = NULL;
 uint32_t    deviceCount = 0;
 SEGDevice  *pBoundDevice = NULL;
 
+#define CREATE_VS(__src__, __ppVS__, __blob__) \
+{ \
+    __blob__ = compileShader(__src__, "vs_5_0"); \
+    HRESULT result = pBoundDevice->pDevice->lpVtbl->CreateVertexShader(pBoundDevice->pDevice, \
+                                                                       __blob__->lpVtbl->GetBufferPointer(__blob__), \
+                                                                       __blob__->lpVtbl->GetBufferSize(__blob__), NULL, __ppVS__); \
+    if (result != S_OK) \
+    { \
+        setError("Failed to compile " #__src__); \
+        *__ppVS__ = NULL; \
+        egDestroyDevice(&ret); \
+        return 0; \
+    } \
+}
+
+#define CREATE_PS(__src__, __ppPS__) \
+{ \
+    ID3DBlob *pCompiled = compileShader(__src__, "ps_5_0"); \
+    HRESULT result = pBoundDevice->pDevice->lpVtbl->CreatePixelShader(pBoundDevice->pDevice, \
+                                                                      pCompiled->lpVtbl->GetBufferPointer(pCompiled), \
+                                                                      pCompiled->lpVtbl->GetBufferSize(pCompiled), NULL, __ppPS__); \
+    pCompiled->lpVtbl->Release(pCompiled); \
+    if (result != S_OK) \
+    { \
+        setError("Failed to compile " #__src__); \
+        *__ppPS__ = NULL; \
+        egDestroyDevice(&ret); \
+        return 0; \
+    } \
+}
+
 EGDevice egCreateDevice(HWND windowHandle)
 {
     if (pBoundDevice)
@@ -129,95 +160,10 @@ EGDevice egCreateDevice(HWND windowHandle)
     pBackBufferRes->lpVtbl->Release(pBackBufferRes);
     pDepthStencilBuffer->lpVtbl->Release(pDepthStencilBuffer);
 
-    // Compile shaders
-    ID3DBlob *pVSB = compileShader(g_vs, "vs_5_0");
-    ID3DBlob *pVSBPassThrough = compileShader(g_vsPassThrough, "vs_5_0");
-    ID3DBlob *pPSBPassThrough = compileShader(g_psPassThrough, "ps_5_0");
-    ID3DBlob *pPSBAmbient = compileShader(g_psAmbient, "ps_5_0");
-    ID3DBlob *pPSBOmni = compileShader(g_psOmni, "ps_5_0");
-    ID3DBlob *pPSLDR = compileShader(g_psLDR, "ps_5_0");
-    ID3DBlob *pPSBlurH = compileShader(g_psBlurH, "ps_5_0");
-    ID3DBlob *pPSBlurV = compileShader(g_psBlurV, "ps_5_0");
-    ID3DBlob *pPSToneMap = compileShader(g_psToneMap, "ps_5_0");
-
-    result = pBoundDevice->pDevice->lpVtbl->CreateVertexShader(pBoundDevice->pDevice, pVSB->lpVtbl->GetBufferPointer(pVSB), pVSB->lpVtbl->GetBufferSize(pVSB), NULL, &pBoundDevice->pVS);
-    if (result != S_OK)
+    // Compile vertex shaders and related input layouts
     {
-        setError("Failed CreateVertexShader");
-        egDestroyDevice(&ret);
-        return 0;
-    }
-    for (int i = 0; i < 18; ++i)
-    {
-        ID3DBlob *pPSB = compileShader(g_pses[i], "ps_5_0");
-        result = pBoundDevice->pDevice->lpVtbl->CreatePixelShader(pBoundDevice->pDevice, pPSB->lpVtbl->GetBufferPointer(pPSB), pPSB->lpVtbl->GetBufferSize(pPSB), NULL, &(pBoundDevice->pPSes[i]));
-        if (result != S_OK)
-        {
-            setError("Failed CreatePixelShader");
-            egDestroyDevice(&ret);
-            return 0;
-        }
-    }
-    pBoundDevice->pActivePS = pBoundDevice->pPSes[0];
-    result = pBoundDevice->pDevice->lpVtbl->CreateVertexShader(pBoundDevice->pDevice, pVSBPassThrough->lpVtbl->GetBufferPointer(pVSBPassThrough), pVSBPassThrough->lpVtbl->GetBufferSize(pVSBPassThrough), NULL, &pBoundDevice->pVSPassThrough);
-    if (result != S_OK)
-    {
-        setError("Failed CreateVertexShader PassThrough");
-        egDestroyDevice(&ret);
-        return 0;
-    }
-    result = pBoundDevice->pDevice->lpVtbl->CreatePixelShader(pBoundDevice->pDevice, pPSBPassThrough->lpVtbl->GetBufferPointer(pPSBPassThrough), pPSBPassThrough->lpVtbl->GetBufferSize(pPSBPassThrough), NULL, &pBoundDevice->pPSPassThrough);
-    if (result != S_OK)
-    {
-        setError("Failed CreatePixelShader PassThrough");
-        egDestroyDevice(&ret);
-        return 0;
-    }
-    result = pBoundDevice->pDevice->lpVtbl->CreatePixelShader(pBoundDevice->pDevice, pPSLDR->lpVtbl->GetBufferPointer(pPSLDR), pPSLDR->lpVtbl->GetBufferSize(pPSLDR), NULL, &pBoundDevice->pPSLDR);
-    if (result != S_OK)
-    {
-        setError("Failed CreatePixelShader LDR");
-        egDestroyDevice(&ret);
-        return 0;
-    }
-    result = pBoundDevice->pDevice->lpVtbl->CreatePixelShader(pBoundDevice->pDevice, pPSBAmbient->lpVtbl->GetBufferPointer(pPSBAmbient), pPSBAmbient->lpVtbl->GetBufferSize(pPSBAmbient), NULL, &pBoundDevice->pPSAmbient);
-    if (result != S_OK)
-    {
-        setError("Failed CreatePixelShader Ambient");
-        egDestroyDevice(&ret);
-        return 0;
-    }
-    result = pBoundDevice->pDevice->lpVtbl->CreatePixelShader(pBoundDevice->pDevice, pPSBOmni->lpVtbl->GetBufferPointer(pPSBOmni), pPSBOmni->lpVtbl->GetBufferSize(pPSBOmni), NULL, &pBoundDevice->pPSOmni);
-    if (result != S_OK)
-    {
-        setError("Failed CreatePixelShader Ambient");
-        egDestroyDevice(&ret);
-        return 0;
-    }
-    result = pBoundDevice->pDevice->lpVtbl->CreatePixelShader(pBoundDevice->pDevice, pPSBlurH->lpVtbl->GetBufferPointer(pPSBlurH), pPSBlurH->lpVtbl->GetBufferSize(pPSBlurH), NULL, &pBoundDevice->pPSBlurH);
-    if (result != S_OK)
-    {
-        setError("Failed CreatePixelShader BlurH");
-        egDestroyDevice(&ret);
-        return 0;
-    }
-    result = pBoundDevice->pDevice->lpVtbl->CreatePixelShader(pBoundDevice->pDevice, pPSBlurV->lpVtbl->GetBufferPointer(pPSBlurV), pPSBlurV->lpVtbl->GetBufferSize(pPSBlurV), NULL, &pBoundDevice->pPSBlurV);
-    if (result != S_OK)
-    {
-        setError("Failed CreatePixelShader BlurV");
-        egDestroyDevice(&ret);
-        return 0;
-    }
-    result = pBoundDevice->pDevice->lpVtbl->CreatePixelShader(pBoundDevice->pDevice, pPSToneMap->lpVtbl->GetBufferPointer(pPSToneMap), pPSToneMap->lpVtbl->GetBufferSize(pPSToneMap), NULL, &pBoundDevice->pPSToneMap);
-    if (result != S_OK)
-    {
-        setError("Failed CreatePixelShader ToneMap");
-        egDestroyDevice(&ret);
-        return 0;
-    }
-
-    // Input layout
-    {
+        ID3DBlob *pCompiled;
+        CREATE_VS(g_vs, &pBoundDevice->pVS, pCompiled);
         D3D11_INPUT_ELEMENT_DESC layout[6] = {
             {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
             {"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0},
@@ -226,28 +172,46 @@ EGDevice egCreateDevice(HWND windowHandle)
             {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 48, D3D11_INPUT_PER_VERTEX_DATA, 0},
             {"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 56, D3D11_INPUT_PER_VERTEX_DATA, 0}
         };
-        result = pBoundDevice->pDevice->lpVtbl->CreateInputLayout(pBoundDevice->pDevice, layout, 6, pVSB->lpVtbl->GetBufferPointer(pVSB), pVSB->lpVtbl->GetBufferSize(pVSB), &pBoundDevice->pInputLayout);
+        result = pBoundDevice->pDevice->lpVtbl->CreateInputLayout(pBoundDevice->pDevice, layout, 6, pCompiled->lpVtbl->GetBufferPointer(pCompiled), pCompiled->lpVtbl->GetBufferSize(pCompiled), &pBoundDevice->pInputLayout);
         if (result != S_OK)
         {
             setError("Failed CreateInputLayout");
             egDestroyDevice(&ret);
             return 0;
         }
+        pCompiled->lpVtbl->Release(pCompiled);
     }
     {
+        ID3DBlob *pCompiled;
+        CREATE_VS(g_vsPassThrough, &pBoundDevice->pVSPassThrough, pCompiled);
         D3D11_INPUT_ELEMENT_DESC layout[3] = {
             {"POSITION", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
             {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 48, D3D11_INPUT_PER_VERTEX_DATA, 0},
             {"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 56, D3D11_INPUT_PER_VERTEX_DATA, 0}
         };
-        result = pBoundDevice->pDevice->lpVtbl->CreateInputLayout(pBoundDevice->pDevice, layout, 3, pVSBPassThrough->lpVtbl->GetBufferPointer(pVSBPassThrough), pVSBPassThrough->lpVtbl->GetBufferSize(pVSBPassThrough), &pBoundDevice->pInputLayoutPassThrough);
+        result = pBoundDevice->pDevice->lpVtbl->CreateInputLayout(pBoundDevice->pDevice, layout, 3, pCompiled->lpVtbl->GetBufferPointer(pCompiled), pCompiled->lpVtbl->GetBufferSize(pCompiled), &pBoundDevice->pInputLayoutPassThrough);
         if (result != S_OK)
         {
             setError("Failed CreateInputLayout PassThrough");
             egDestroyDevice(&ret);
             return 0;
         }
+        pCompiled->lpVtbl->Release(pCompiled);
     }
+
+    // Pixel shaders
+    for (int i = 0; i < 18; ++i)
+    {
+        CREATE_PS(g_pses[i], &(pBoundDevice->pPSes[i]));
+    }
+    pBoundDevice->pActivePS = pBoundDevice->pPSes[0];
+    CREATE_PS(g_psPassThrough, &pBoundDevice->pPSPassThrough);
+    CREATE_PS(g_psLDR, &pBoundDevice->pPSLDR);
+    CREATE_PS(g_psAmbient, &pBoundDevice->pPSAmbient);
+    CREATE_PS(g_psOmni, &pBoundDevice->pPSOmni);
+    CREATE_PS(g_psBlurH, &pBoundDevice->pPSBlurH);
+    CREATE_PS(g_psBlurV, &pBoundDevice->pPSBlurV);
+    CREATE_PS(g_psToneMap, &pBoundDevice->pPSToneMap);
 
     // Create uniforms
     {
@@ -331,7 +295,7 @@ EGDevice egCreateDevice(HWND windowHandle)
         return 0;
     }
 
-    // Create a white texture for default rendering
+    // Create default textures
     {
         uint8_t pixel[4] = {255, 255, 255, 255};
         texture2DFromData(pBoundDevice->pDefaultTextureMaps + DIFFUSE_MAP, pixel, 1, 1, FALSE);
@@ -413,16 +377,6 @@ EGDevice egCreateDevice(HWND windowHandle)
         return 0;
     }
 
-    // Create bloom buffers
-    result = createRenderTarget(&pBoundDevice->bloomBuffer,
-                                pBoundDevice->backBufferDesc.Width, pBoundDevice->backBufferDesc.Height,
-                                DXGI_FORMAT_R8G8B8A8_UNORM);
-    if (result != S_OK)
-    {
-        egDestroyDevice(&ret);
-        return 0;
-    }
-
     // Create blur buffers
     for (int i = 0; i < 8; ++i)
     {
@@ -469,144 +423,128 @@ EGDevice egCreateDevice(HWND windowHandle)
     return ret;
 }
 
+void destroyRenderTarget(SEGRenderTarget2D *pRenderTarget)
+{
+    if (pRenderTarget)
+    {
+        SEGTexture2D *pTexture = &pRenderTarget->texture;
+        if (pTexture)
+        {
+            if (pTexture->pTexture)
+            {
+                pTexture->pTexture->lpVtbl->Release(pTexture->pTexture);
+            }
+            if (pTexture->pResourceView)
+            {
+                pTexture->pResourceView->lpVtbl->Release(pTexture->pResourceView);
+            }
+        }
+        if (pRenderTarget->pRenderTargetView)
+        {
+            pRenderTarget->pRenderTargetView->lpVtbl->Release(pRenderTarget->pRenderTargetView);
+        }
+    }
+}
+
+void destroyTexture(SEGTexture2D *pTexture)
+{
+    if (pTexture)
+    {
+        if (pTexture->pTexture)
+        {
+            pTexture->pTexture->lpVtbl->Release(pTexture->pTexture);
+        }
+        if (pTexture->pResourceView)
+        {
+            pTexture->pResourceView->lpVtbl->Release(pTexture->pResourceView);
+        }
+    }
+}
+
+void destroyState(SEGState *pState)
+{
+    if (pState->depthState.pState) pState->depthState.pState->lpVtbl->Release(pState->depthState.pState);
+    if (pState->rasterizerState.pState) pState->rasterizerState.pState->lpVtbl->Release(pState->rasterizerState.pState);
+    if (pState->blendState.pState) pState->blendState.pState->lpVtbl->Release(pState->blendState.pState);
+    if (pState->samplerState.pState) pState->samplerState.pState->lpVtbl->Release(pState->samplerState.pState);
+    if (pState->alphaTestState.pCB) pState->alphaTestState.pCB->lpVtbl->Release(pState->alphaTestState.pCB);
+}
+
 void egDestroyDevice(EGDevice *pDeviceID)
 {
     SEGDevice *pDevice = devices + (*pDeviceID - 1);
     if (pDevice->bIsInBatch) return;
 
+    // Textures
     for (uint32_t i = 0; i < pDevice->textureCount; ++i)
     {
         SEGTexture2D *pTexture = pDevice->textures + i;
-        if (pTexture)
-        {
-            if (pTexture->pTexture)
-            {
-                pTexture->pTexture->lpVtbl->Release(pTexture->pTexture);
-            }
-            if (pTexture->pResourceView)
-            {
-                pTexture->pResourceView->lpVtbl->Release(pTexture->pResourceView);
-            }
-        }
+        destroyTexture(pTexture);
     }
-
+    free(pDevice->textures);
     for (uint32_t i = 0; i < 3; ++i)
     {
         SEGTexture2D *pTexture = pDevice->pDefaultTextureMaps + i;
-        if (pTexture)
-        {
-            if (pTexture->pTexture)
-            {
-                pTexture->pTexture->lpVtbl->Release(pTexture->pTexture);
-            }
-            if (pTexture->pResourceView)
-            {
-                pTexture->pResourceView->lpVtbl->Release(pTexture->pResourceView);
-            }
-        }
+        destroyTexture(pTexture);
     }
+    destroyTexture(&pDevice->transparentBlackTexture);
 
+    // Render targets
     for (uint32_t i = 0; i < 4; ++i)
     {
         SEGRenderTarget2D *pRenderTarget = pDevice->gBuffer + i;
-        if (pRenderTarget)
-        {
-            SEGTexture2D *pTexture = &pRenderTarget->texture;
-            if (pTexture)
-            {
-                if (pTexture->pTexture)
-                {
-                    pTexture->pTexture->lpVtbl->Release(pTexture->pTexture);
-                }
-                if (pTexture->pResourceView)
-                {
-                    pTexture->pResourceView->lpVtbl->Release(pTexture->pResourceView);
-                }
-            }
-            if (pRenderTarget->pRenderTargetView)
-            {
-                pRenderTarget->pRenderTargetView->lpVtbl->Release(pRenderTarget->pRenderTargetView);
-            }
-        }
+        destroyRenderTarget(pRenderTarget);
     }
-
     for (uint32_t i = 0; i < 8; ++i)
     {
         for (uint32_t k = 0; k < 2; ++k)
         {
             SEGRenderTarget2D *pRenderTarget = &pDevice->blurBuffers[i][k];
-            if (pRenderTarget)
-            {
-                SEGTexture2D *pTexture = &pRenderTarget->texture;
-                if (pTexture)
-                {
-                    if (pTexture->pTexture)
-                    {
-                        pTexture->pTexture->lpVtbl->Release(pTexture->pTexture);
-                    }
-                    if (pTexture->pResourceView)
-                    {
-                        pTexture->pResourceView->lpVtbl->Release(pTexture->pResourceView);
-                    }
-                }
-                if (pRenderTarget->pRenderTargetView)
-                {
-                    pRenderTarget->pRenderTargetView->lpVtbl->Release(pRenderTarget->pRenderTargetView);
-                }
-            }
+            destroyRenderTarget(pRenderTarget);
         }
     }
+    destroyRenderTarget(&pBoundDevice->accumulationBuffer);
 
-    {
-        SEGRenderTarget2D *pRenderTarget = &pDevice->bloomBuffer;
-        if (pRenderTarget)
-        {
-            SEGTexture2D *pTexture = &pRenderTarget->texture;
-            if (pTexture)
-            {
-                if (pTexture->pTexture)
-                {
-                    pTexture->pTexture->lpVtbl->Release(pTexture->pTexture);
-                }
-                if (pTexture->pResourceView)
-                {
-                    pTexture->pResourceView->lpVtbl->Release(pTexture->pResourceView);
-                }
-            }
-            if (pRenderTarget->pRenderTargetView)
-            {
-                pRenderTarget->pRenderTargetView->lpVtbl->Release(pRenderTarget->pRenderTargetView);
-            }
-        }
-    }
-
-    if (pBoundDevice->accumulationBuffer.pRenderTargetView)
-        pBoundDevice->accumulationBuffer.pRenderTargetView->lpVtbl->Release(pBoundDevice->accumulationBuffer.pRenderTargetView);
-    if (pBoundDevice->accumulationBuffer.texture.pResourceView)
-        pBoundDevice->accumulationBuffer.texture.pResourceView->lpVtbl->Release(pBoundDevice->accumulationBuffer.texture.pResourceView);
-    if (pBoundDevice->accumulationBuffer.texture.pTexture)
-        pBoundDevice->accumulationBuffer.texture.pTexture->lpVtbl->Release(pBoundDevice->accumulationBuffer.texture.pTexture);
-
+    // VBO
     if (pDevice->pVertexBufferRes) pDevice->pVertexBufferRes->lpVtbl->Release(pDevice->pVertexBufferRes);
     if (pDevice->pVertexBuffer) pDevice->pVertexBuffer->lpVtbl->Release(pDevice->pVertexBuffer);
 
+    // Constant buffers
     if (pDevice->pCBModel) pDevice->pCBModel->lpVtbl->Release(pDevice->pCBModel);
     if (pDevice->pCBViewProj) pDevice->pCBViewProj->lpVtbl->Release(pDevice->pCBViewProj);
     if (pDevice->pCBInvViewProj) pDevice->pCBInvViewProj->lpVtbl->Release(pDevice->pCBInvViewProj);
+    if (pDevice->pCBAlphaTestRef) pDevice->pCBAlphaTestRef->lpVtbl->Release(pDevice->pCBAlphaTestRef);
     if (pDevice->pCBOmni) pDevice->pCBOmni->lpVtbl->Release(pDevice->pCBOmni);
+    if (pDevice->pCBBlurSpread) pDevice->pCBBlurSpread->lpVtbl->Release(pDevice->pCBBlurSpread);
 
+    // Input layouts
     if (pDevice->pInputLayout) pDevice->pInputLayout->lpVtbl->Release(pDevice->pInputLayout);
+    if (pDevice->pInputLayoutPassThrough) pDevice->pInputLayout->lpVtbl->Release(pDevice->pInputLayoutPassThrough);
+
+    // Shaders
+    if (pDevice->pVS) pDevice->pVS->lpVtbl->Release(pDevice->pVS);
     for (int i = 0; i < 18; ++i)
     {
         if (pDevice->pPSes[i]) pDevice->pPSes[i]->lpVtbl->Release(pDevice->pPSes[i]);
     }
-    if (pDevice->pVS) pDevice->pVS->lpVtbl->Release(pDevice->pVS);
-    if (pDevice->pInputLayoutPassThrough) pDevice->pInputLayoutPassThrough->lpVtbl->Release(pDevice->pInputLayoutPassThrough);
     if (pDevice->pPSPassThrough) pDevice->pPSPassThrough->lpVtbl->Release(pDevice->pPSPassThrough);
     if (pDevice->pVSPassThrough) pDevice->pVSPassThrough->lpVtbl->Release(pDevice->pVSPassThrough);
     if (pDevice->pPSAmbient) pDevice->pPSAmbient->lpVtbl->Release(pDevice->pPSAmbient);
     if (pDevice->pPSOmni) pDevice->pPSOmni->lpVtbl->Release(pDevice->pPSOmni);
+    if (pDevice->pPSLDR) pDevice->pPSLDR->lpVtbl->Release(pDevice->pPSLDR);
+    if (pDevice->pPSBlurH) pDevice->pPSBlurH->lpVtbl->Release(pDevice->pPSBlurH);
+    if (pDevice->pPSBlurV) pDevice->pPSBlurV->lpVtbl->Release(pDevice->pPSBlurV);
+    if (pDevice->pPSToneMap) pDevice->pPSToneMap->lpVtbl->Release(pDevice->pPSToneMap);
 
+    // States
+    for (uint32_t i = 0; i < pDevice->stateCount; ++i)
+    {
+        SEGState *pState = pDevice->states + i;
+        destroyState(pState);
+    }
+    free(pDevice->states);
+
+    // Device
     if (pDevice->pDepthStencilView) pDevice->pDepthStencilView->lpVtbl->Release(pDevice->pDepthStencilView);
     if (pDevice->pRenderTargetView) pDevice->pRenderTargetView->lpVtbl->Release(pDevice->pRenderTargetView);
     if (pDevice->pDeviceContext) pDevice->pDeviceContext->lpVtbl->Release(pDevice->pDeviceContext);

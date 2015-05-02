@@ -73,7 +73,7 @@ void init()
     egEnable(EG_DEPTH_TEST | EG_DEPTH_WRITE | EG_CULL);
     egEnable(EG_LIGHTING);
     egEnable(EG_HDR | EG_BLOOM/* | EG_BLUR*/);
-    egBlur(16);
+    egBlur(128);
     state3d = egCreateState();
 
     egDisable(EG_ALL);
@@ -97,6 +97,7 @@ void draw()
     egClearColor(0, 0, 0, 1);
     egClear(EG_CLEAR_ALL);
 
+#if 1 // 3d
     // Setup matrices
     egModelIdentity();
     egSet3DViewProj(-5, -5, 3, 0, 0, -2, 0, 0, 1, 70, .1f, 10000.f);
@@ -108,6 +109,7 @@ void draw()
     static float rotation = 0.f;
     rotation += 1.f;
 
+#if 1 // floor
     egColor3(1, 1, 1);
     egBindDiffuse(diffuseFloor);
     egBindNormal(normalFloor);
@@ -132,7 +134,9 @@ void draw()
         egEnd();
     }
     egModelPop();
+#endif
 
+#if 1 // primitives
     egModelPush();
     {
         egColor3(1, 1, 1);
@@ -149,6 +153,7 @@ void draw()
         egTube(1.5f, 1.0f, 3, 24, 3);
     }
     egModelPop();
+#endif
 
     egBegin(EG_AMBIENTS);
     {
@@ -189,8 +194,8 @@ void draw()
     }
     egEnd();
     egPostProcess();
-    
-#if 1
+#endif
+#if 1 // 2d
     egSet2DViewProj(-999, 999);
     egBindState(state2d);
     egBindDiffuse(0);
@@ -226,7 +231,6 @@ void draw()
     egEnd();
 
     egEnable(EG_BLEND);
-    //egBlendFunc(EG_ZERO, EG_SRC_COLOR);
     egBlendFunc(EG_SRC_ALPHA, EG_ONE_MINUS_SRC_ALPHA);
     egPostProcess();
 #endif

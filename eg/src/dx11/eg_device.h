@@ -30,17 +30,16 @@ typedef struct
     D3D11_TEXTURE2D_DESC        backBufferDesc;
     SEGRenderTarget2D           gBuffer[4];
     SEGRenderTarget2D           accumulationBuffer;
-    SEGRenderTarget2D           bloomBuffer;
     SEGRenderTarget2D           blurBuffers[8][2];
 
     // Shaders
+    ID3D11InputLayout          *pInputLayout;
+    ID3D11InputLayout          *pInputLayoutPassThrough;
     ID3D11VertexShader         *pVS;
     ID3D11PixelShader          *pPSes[18];
     ID3D11PixelShader          *pActivePS;
-    ID3D11InputLayout          *pInputLayout;
     ID3D11VertexShader         *pVSPassThrough;
     ID3D11PixelShader          *pPSPassThrough;
-    ID3D11InputLayout          *pInputLayoutPassThrough;
     ID3D11PixelShader          *pPSAmbient;
     ID3D11PixelShader          *pPSOmni;
     ID3D11PixelShader          *pPSLDR;

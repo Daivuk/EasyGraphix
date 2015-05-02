@@ -15,25 +15,6 @@ void beginGeometryPass()
 
     if (pState->enableBits & EG_LIGHTING)
     {
-        // Unbind if it's still bound
-        ID3D11ShaderResourceView *res = NULL;
-        pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 3, 1, &res);
-        pBoundDevice->pDeviceContext->lpVtbl->PSGetShaderResources(pBoundDevice->pDeviceContext, 0, 1, &res);
-        if (res == pBoundDevice->gBuffer[G_DIFFUSE].texture.pResourceView)
-        {
-            pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->pDefaultTextureMaps[DIFFUSE_MAP].pResourceView);
-        }
-        pBoundDevice->pDeviceContext->lpVtbl->PSGetShaderResources(pBoundDevice->pDeviceContext, 1, 1, &res);
-        if (res == pBoundDevice->gBuffer[G_DEPTH].texture.pResourceView)
-        {
-            pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 1, 1, &pBoundDevice->pDefaultTextureMaps[NORMAL_MAP].pResourceView);
-        }
-        pBoundDevice->pDeviceContext->lpVtbl->PSGetShaderResources(pBoundDevice->pDeviceContext, 2, 1, &res);
-        if (res == pBoundDevice->gBuffer[G_NORMAL].texture.pResourceView)
-        {
-            pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 2, 1, &pBoundDevice->pDefaultTextureMaps[MATERIAL_MAP].pResourceView);
-        }
-
         // Bind G-Buffer
         ID3D11RenderTargetView *gBuffer[4] = {
             pBoundDevice->gBuffer[G_DIFFUSE].pRenderTargetView,
