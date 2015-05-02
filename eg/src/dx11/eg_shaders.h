@@ -6,8 +6,7 @@
 #include <d3dcompiler.h>
 
 extern const char *g_vs;
-extern const char *g_ps;
-extern const char *g_psAlphaTest[8];
+extern const char *g_pses[18];
 extern const char *g_vsPassThrough;
 extern const char *g_psPassThrough;
 extern const char *g_psLDR;

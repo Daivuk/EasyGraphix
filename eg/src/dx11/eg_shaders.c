@@ -76,6 +76,27 @@ const char *g_vs = MULTILINE(
     }
 );
 
+#define PSSTART_NOLIT \
+    "Texture2D xDiffuse:register(t0);" \
+    "SamplerState sSampler:register(s0);" \
+    "struct sInput" \
+    "{" \
+    "    float4 position:SV_POSITION;" \
+    "    float3 normal:NORMAL;" \
+    "    float3 tangent:TANGENT;" \
+    "    float3 binormal:BINORMAL;" \
+    "    float2 texCoord:TEXCOORD;" \
+    "    float4 color:COLOR;" \
+    "    float2 depth:TEXCOORD1;" \
+    "};" \
+    "float4 main(sInput input):SV_TARGET" \
+    "{" \
+    "    float4 xdiffuse = xDiffuse.Sample(sSampler, input.texCoord);"
+
+#define PSEND_NOLIT \
+    "    return xdiffuse * input.color;" \
+    "}"
+
 #define PSSTART \
     "Texture2D xDiffuse:register(t0);" \
     "Texture2D xNormal:register(t1);" \
@@ -122,18 +143,27 @@ const char *g_vs = MULTILINE(
 "    float4 alphaTestRef;" \
 "}"
 
-const char *g_psAlphaTest[8] = {
-    PSALPHATESTSTART PSSTART "discard;" PSEND,
-    PSALPHATESTSTART PSSTART "if (xdiffuse.a < alphaTestRef.r) discard;" PSEND,
-    PSALPHATESTSTART PSSTART "if (xdiffuse.a == alphaTestRef.r) discard;" PSEND,
-    PSALPHATESTSTART PSSTART "if (xdiffuse.a <= alphaTestRef.r) discard;" PSEND,
-    PSALPHATESTSTART PSSTART "if (xdiffuse.a > alphaTestRef.r) discard;" PSEND,
-    PSALPHATESTSTART PSSTART "if (xdiffuse.a != alphaTestRef.r) discard;" PSEND,
-    PSALPHATESTSTART PSSTART "if (xdiffuse.a >= alphaTestRef.r) discard;" PSEND,
-    PSSTART PSEND
-};
+const char *g_pses[18] = {
+    PSSTART PSEND, // EG_LIGHTING !EG_ALPHA_TEST
+    PSALPHATESTSTART PSSTART "discard;" PSEND, // EG_LIGHTING EG_ALPHA_TEST
+    PSALPHATESTSTART PSSTART "if (xdiffuse.a < alphaTestRef.r) discard;" PSEND, // EG_LIGHTING EG_ALPHA_TEST
+    PSALPHATESTSTART PSSTART "if (xdiffuse.a == alphaTestRef.r) discard;" PSEND, // EG_LIGHTING EG_ALPHA_TEST
+    PSALPHATESTSTART PSSTART "if (xdiffuse.a <= alphaTestRef.r) discard;" PSEND, // EG_LIGHTING EG_ALPHA_TEST
+    PSALPHATESTSTART PSSTART "if (xdiffuse.a > alphaTestRef.r) discard;" PSEND, // EG_LIGHTING EG_ALPHA_TEST
+    PSALPHATESTSTART PSSTART "if (xdiffuse.a != alphaTestRef.r) discard;" PSEND, // EG_LIGHTING EG_ALPHA_TEST
+    PSALPHATESTSTART PSSTART "if (xdiffuse.a >= alphaTestRef.r) discard;" PSEND, // EG_LIGHTING EG_ALPHA_TEST
+    PSSTART PSEND, // EG_LIGHTING EG_ALPHA_TEST
 
-const char *g_ps = PSSTART PSEND;
+    PSSTART_NOLIT PSEND_NOLIT, // !EG_LIGHTING !EG_ALPHA_TEST
+    PSALPHATESTSTART PSSTART_NOLIT "discard;" PSEND_NOLIT, // !EG_LIGHTING EG_ALPHA_TEST
+    PSALPHATESTSTART PSSTART_NOLIT "if (xdiffuse.a < alphaTestRef.r) discard;" PSEND_NOLIT, // !EG_LIGHTING EG_ALPHA_TEST
+    PSALPHATESTSTART PSSTART_NOLIT "if (xdiffuse.a == alphaTestRef.r) discard;" PSEND_NOLIT, // !EG_LIGHTING EG_ALPHA_TEST
+    PSALPHATESTSTART PSSTART_NOLIT "if (xdiffuse.a <= alphaTestRef.r) discard;" PSEND_NOLIT, // !EG_LIGHTING EG_ALPHA_TEST
+    PSALPHATESTSTART PSSTART_NOLIT "if (xdiffuse.a > alphaTestRef.r) discard;" PSEND_NOLIT, // !EG_LIGHTING EG_ALPHA_TEST
+    PSALPHATESTSTART PSSTART_NOLIT "if (xdiffuse.a != alphaTestRef.r) discard;" PSEND_NOLIT, // !EG_LIGHTING EG_ALPHA_TEST
+    PSALPHATESTSTART PSSTART_NOLIT "if (xdiffuse.a >= alphaTestRef.r) discard;" PSEND_NOLIT, // !EG_LIGHTING EG_ALPHA_TEST
+    PSSTART_NOLIT PSEND_NOLIT, // !EG_LIGHTING EG_ALPHA_TEST
+};
 
 const char *g_vsPassThrough = MULTILINE(
     struct sInput

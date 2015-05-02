@@ -156,6 +156,9 @@ void egPostProcess()
     pBoundDevice->pDeviceContext->lpVtbl->PSSetSamplers(pBoundDevice->pDeviceContext, 0, 1, &pSs);
     pSs->lpVtbl->Release(pSs);
 
+    egDisable(EG_BLEND);
+    updateState();
+
     if (pState->enableBits & EG_HDR)
     {
         if (pState->enableBits & EG_BLOOM)
@@ -213,10 +216,19 @@ void egPostProcess()
         }
         else
         {
+            egStatePush();
+            egEnable(EG_BLEND);
+            egBlendFunc(EG_SRC_ALPHA, EG_ONE_MINUS_SRC_ALPHA);
+            updateState();
+
             pBoundDevice->pDeviceContext->lpVtbl->OMSetRenderTargets(pBoundDevice->pDeviceContext, 1, &pBoundDevice->pRenderTargetView, NULL);
         }
         pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->accumulationBuffer.texture.pResourceView);
         drawScreenQuad(-1, 1, 1, -1, white);
+        if (!(pState->enableBits & EG_BLUR))
+        {
+            egStatePop();
+        }
     }
 
     if (pState->enableBits & EG_BLUR)
@@ -228,6 +240,14 @@ void egPostProcess()
         pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->blurBuffers[blurId][0].texture.pResourceView);
         drawScreenQuad(-1, 1, 1, -1, white);
     }
+
+    // We clear the accumulation buffer after a post process call
+    float black[4] = {0, 0, 0, 0};
+    pBoundDevice->pDeviceContext->lpVtbl->ClearRenderTargetView(pBoundDevice->pDeviceContext, pBoundDevice->accumulationBuffer.pRenderTargetView, black);
+    pBoundDevice->pDeviceContext->lpVtbl->ClearRenderTargetView(pBoundDevice->pDeviceContext, pBoundDevice->gBuffer[G_DIFFUSE].pRenderTargetView, black);
+    //pBoundDevice->pDeviceContext->lpVtbl->ClearRenderTargetView(pBoundDevice->pDeviceContext, pBoundDevice->gBuffer[G_MATERIAL].pRenderTargetView, black);
+    //pBoundDevice->pDeviceContext->lpVtbl->ClearRenderTargetView(pBoundDevice->pDeviceContext, pBoundDevice->gBuffer[G_NORMAL].pRenderTargetView, black);
+    //pBoundDevice->pDeviceContext->lpVtbl->ClearRenderTargetView(pBoundDevice->pDeviceContext, pBoundDevice->gBuffer[G_DEPTH].pRenderTargetView, black);
 
     // G-Buffer
     //pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->gBuffer[G_DIFFUSE].texture.pResourceView);

@@ -47,6 +47,7 @@ void resetState()
     pState->rasterizer.CullMode = D3D11_CULL_NONE;
     pState->rasterizer.FrontCounterClockwise = TRUE;
 
+    pState->blend.IndependentBlendEnable = TRUE;
     for (int i = 0; i < 8; ++i)
     {
         pState->blend.RenderTarget[i].BlendEnable = FALSE;
@@ -54,7 +55,7 @@ void resetState()
         pState->blend.RenderTarget[i].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
         pState->blend.RenderTarget[i].BlendOp = D3D11_BLEND_OP_ADD;
         pState->blend.RenderTarget[i].SrcBlendAlpha = D3D11_BLEND_ONE;
-        pState->blend.RenderTarget[i].DestBlendAlpha = D3D11_BLEND_ONE;
+        pState->blend.RenderTarget[i].DestBlendAlpha = D3D11_BLEND_ZERO;
         pState->blend.RenderTarget[i].BlendOpAlpha = D3D11_BLEND_OP_ADD;
         pState->blend.RenderTarget[i].RenderTargetWriteMask = D3D10_COLOR_WRITE_ENABLE_ALL;
     }
@@ -83,8 +84,8 @@ void resetState()
 
     pBoundDevice->pDeviceContext->lpVtbl->IASetInputLayout(pBoundDevice->pDeviceContext, pBoundDevice->pInputLayout);
     pBoundDevice->pDeviceContext->lpVtbl->VSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pVS, NULL, 0);
-    pBoundDevice->pDeviceContext->lpVtbl->PSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pPS, NULL, 0);
-    pBoundDevice->pActivePS = pBoundDevice->pPS;
+    pBoundDevice->pActivePS = pBoundDevice->pPSes[0];
+    pBoundDevice->pDeviceContext->lpVtbl->PSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pActivePS, NULL, 0);
 
     ID3D11RenderTargetView *gBuffer[4] = {
         pBoundDevice->gBuffer[G_DIFFUSE].pRenderTargetView,
@@ -136,9 +137,10 @@ void updateState()
     }
     if (pState->alphaTestDirty)
     {
+        int i = 0;
         if (pState->enableBits & EG_ALPHA_TEST)
         {
-            pBoundDevice->pActivePS = pBoundDevice->pPSAlphaTest[pState->alphaTestFunc];
+            i += 1 + pState->alphaTestFunc;
 
             // Update the constant buffer
             D3D11_MAPPED_SUBRESOURCE map;
@@ -150,12 +152,28 @@ void updateState()
             pRes->lpVtbl->Release(pRes);
             pBoundDevice->pDeviceContext->lpVtbl->PSSetConstantBuffers(pBoundDevice->pDeviceContext, 2, 1, &pBoundDevice->pCBAlphaTestRef);
         }
-        else
+        if (!(pState->enableBits & EG_LIGHTING))
         {
-            pBoundDevice->pActivePS = pBoundDevice->pPS;
+            i += 9;
         }
+        pBoundDevice->pActivePS = pBoundDevice->pPSes[i];
         pBoundDevice->pDeviceContext->lpVtbl->PSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pActivePS, NULL, 0);
         pState->alphaTestDirty = FALSE;
+    }
+    if (pState->lightingDirty)
+    {
+        int i = 0;
+        if (pState->enableBits & EG_ALPHA_TEST)
+        {
+            i += 1 + pState->alphaTestFunc;
+        }
+        if (!(pState->enableBits & EG_LIGHTING))
+        {
+            i += 9;
+        }
+        pBoundDevice->pActivePS = pBoundDevice->pPSes[i];
+        pBoundDevice->pDeviceContext->lpVtbl->PSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pActivePS, NULL, 0);
+        pState->lightingDirty = FALSE;
     }
 }
 
@@ -327,6 +345,11 @@ void egEnable(EGEnable stateBits)
         pState->rasterizerDirty = TRUE;
         pPreviousState->rasterizerDirty = TRUE;
     }
+    if ((stateBits & EG_LIGHTING) && !(pState->enableBits & EG_LIGHTING))
+    {
+        pState->lightingDirty = TRUE;
+        pPreviousState->lightingDirty = TRUE;
+    }
     pState->enableBits |= stateBits;
 }
 
@@ -376,6 +399,11 @@ void egDisable(EGEnable stateBits)
         pState->rasterizer.FillMode = D3D11_FILL_SOLID;
         pState->rasterizerDirty = TRUE;
         pPreviousState->rasterizerDirty = TRUE;
+    }
+    if ((stateBits & EG_LIGHTING) && (pState->enableBits & EG_LIGHTING))
+    {
+        pState->lightingDirty = TRUE;
+        pPreviousState->lightingDirty = TRUE;
     }
     pState->enableBits &= ~stateBits;
 }

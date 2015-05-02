@@ -280,7 +280,13 @@ extern "C"
         EG_DEPTH_WRITE                  = 0x00004000,
 
         /*! Draw a vignette around corners of the screen. */
-        EG_VIGNETTE                     = 0x00008000
+        EG_VIGNETTE                     = 0x00008000,
+
+        /*! Draw information needed for lighting */
+        EG_LIGHTING                     = 0x00010000,
+
+        /*! All enable bits */
+        EG_ALL                          = 0xffffffff
 
     } EG_ENABLE;
 

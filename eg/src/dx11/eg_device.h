@@ -35,8 +35,7 @@ typedef struct
 
     // Shaders
     ID3D11VertexShader         *pVS;
-    ID3D11PixelShader          *pPS;
-    ID3D11PixelShader          *pPSAlphaTest[8];
+    ID3D11PixelShader          *pPSes[18];
     ID3D11PixelShader          *pActivePS;
     ID3D11InputLayout          *pInputLayout;
     ID3D11VertexShader         *pVSPassThrough;

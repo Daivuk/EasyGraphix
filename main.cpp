@@ -84,14 +84,14 @@ void draw()
     egSet3DViewProj(-5, -5, 3, 0, 0, -2, 0, 0, 1, 70, .1f, 10000.f);
 
     // Setup 3d states
-    egEnable(EG_DEPTH_TEST);
-    egEnable(EG_CULL);
-    egEnable(/*EG_HDR | EG_BLOOM |*/ EG_BLUR);
+    egEnable(EG_DEPTH_TEST | EG_CULL);
+    egEnable(EG_LIGHTING);
+    egEnable(EG_HDR | EG_BLOOM | EG_BLUR);
 
     // Draw shit up
     static float rotation = 0.f;
     rotation += 1.f;
-    egBlur((sinf(rotation * 3.1415f / 180.f) * .5f + .5f) * 256.f);
+    egBlur(16);
 
     egColor3(1, 1, 1);
     egBindDiffuse(diffuseFloor);
@@ -160,25 +160,25 @@ void draw()
         egColor3(.5f, .75f, 1);
         egPosition3(15, -15, 10);
 
-        //egRadius(10);
+        egRadius(10);
 
-        //egMultiply(10);
-        //egColor3(.5f, .75f, 1);
-        //egPosition3(0, -4, -2.0f); // This will render the light
+        egMultiply(10);
+        egColor3(.5f, .75f, 1);
+        egPosition3(0, -4, -2.0f); // This will render the light
 
-        //egMultiply(3);
-        //egColor3(1, .75f, .5f);
-        //egPosition3(-4, 0, -2.0f); // This will render the light
+        egMultiply(3);
+        egColor3(1, .75f, .5f);
+        egPosition3(-4, 0, -2.0f); // This will render the light
 
-        //egMultiply(10);
-        //egColor3(.75f, .5f, 1);
-        //egPosition3(5, 20, -2.0f); // This will render the light
+        egMultiply(10);
+        egColor3(.75f, .5f, 1);
+        egPosition3(5, 20, -2.0f); // This will render the light
     }
     egEnd();
-    /*
+    egPostProcess();
+    
     egSet2DViewProj(-999, 999);
-    egDisable(EG_DEPTH_TEST);
-    egDisable(EG_CULL);
+    egDisable(EG_ALL);
     egBindDiffuse(0);
     egBindNormal(0);
     egBindMaterial(0);
@@ -206,15 +206,8 @@ void draw()
         egPosition2(800 + 128, 100);
     }
     egEnd();
-
-    egBegin(EG_AMBIENTS);
-    {
-        egColor3(1, 1, 1); // This will render an ambient pass
-    }
-    egEnd();
-    */
-    // Post process and swap
     egPostProcess();
+
     egSwap();
 }
 

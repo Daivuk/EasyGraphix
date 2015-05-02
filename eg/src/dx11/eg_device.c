@@ -131,7 +131,6 @@ EGDevice egCreateDevice(HWND windowHandle)
 
     // Compile shaders
     ID3DBlob *pVSB = compileShader(g_vs, "vs_5_0");
-    ID3DBlob *pPSB = compileShader(g_ps, "ps_5_0");
     ID3DBlob *pVSBPassThrough = compileShader(g_vsPassThrough, "vs_5_0");
     ID3DBlob *pPSBPassThrough = compileShader(g_psPassThrough, "ps_5_0");
     ID3DBlob *pPSBAmbient = compileShader(g_psAmbient, "ps_5_0");
@@ -140,6 +139,7 @@ EGDevice egCreateDevice(HWND windowHandle)
     ID3DBlob *pPSBlurH = compileShader(g_psBlurH, "ps_5_0");
     ID3DBlob *pPSBlurV = compileShader(g_psBlurV, "ps_5_0");
     ID3DBlob *pPSToneMap = compileShader(g_psToneMap, "ps_5_0");
+
     result = pBoundDevice->pDevice->lpVtbl->CreateVertexShader(pBoundDevice->pDevice, pVSB->lpVtbl->GetBufferPointer(pVSB), pVSB->lpVtbl->GetBufferSize(pVSB), NULL, &pBoundDevice->pVS);
     if (result != S_OK)
     {
@@ -147,18 +147,10 @@ EGDevice egCreateDevice(HWND windowHandle)
         egDestroyDevice(&ret);
         return 0;
     }
-    result = pBoundDevice->pDevice->lpVtbl->CreatePixelShader(pBoundDevice->pDevice, pPSB->lpVtbl->GetBufferPointer(pPSB), pPSB->lpVtbl->GetBufferSize(pPSB), NULL, &pBoundDevice->pPS);
-    if (result != S_OK)
+    for (int i = 0; i < 18; ++i)
     {
-        setError("Failed CreatePixelShader");
-        egDestroyDevice(&ret);
-        return 0;
-    }
-    pBoundDevice->pActivePS = pBoundDevice->pPS;
-    for (int i = 0; i < 8; ++i)
-    {
-        ID3DBlob *pPSBAlphaTest = compileShader(g_psAlphaTest[i], "ps_5_0");
-        result = pBoundDevice->pDevice->lpVtbl->CreatePixelShader(pBoundDevice->pDevice, pPSBAlphaTest->lpVtbl->GetBufferPointer(pPSBAlphaTest), pPSBAlphaTest->lpVtbl->GetBufferSize(pPSBAlphaTest), NULL, &(pBoundDevice->pPSAlphaTest[i]));
+        ID3DBlob *pPSB = compileShader(g_pses[i], "ps_5_0");
+        result = pBoundDevice->pDevice->lpVtbl->CreatePixelShader(pBoundDevice->pDevice, pPSB->lpVtbl->GetBufferPointer(pPSB), pPSB->lpVtbl->GetBufferSize(pPSB), NULL, &(pBoundDevice->pPSes[i]));
         if (result != S_OK)
         {
             setError("Failed CreatePixelShader");
@@ -166,6 +158,7 @@ EGDevice egCreateDevice(HWND windowHandle)
             return 0;
         }
     }
+    pBoundDevice->pActivePS = pBoundDevice->pPSes[0];
     result = pBoundDevice->pDevice->lpVtbl->CreateVertexShader(pBoundDevice->pDevice, pVSBPassThrough->lpVtbl->GetBufferPointer(pVSBPassThrough), pVSBPassThrough->lpVtbl->GetBufferSize(pVSBPassThrough), NULL, &pBoundDevice->pVSPassThrough);
     if (result != S_OK)
     {
@@ -580,7 +573,10 @@ void egDestroyDevice(EGDevice *pDeviceID)
     if (pDevice->pCBOmni) pDevice->pCBOmni->lpVtbl->Release(pDevice->pCBOmni);
 
     if (pDevice->pInputLayout) pDevice->pInputLayout->lpVtbl->Release(pDevice->pInputLayout);
-    if (pDevice->pPS) pDevice->pPS->lpVtbl->Release(pDevice->pPS);
+    for (int i = 0; i < 18; ++i)
+    {
+        if (pDevice->pPSes[i]) pDevice->pPSes[i]->lpVtbl->Release(pDevice->pPSes[i]);
+    }
     if (pDevice->pVS) pDevice->pVS->lpVtbl->Release(pDevice->pVS);
     if (pDevice->pInputLayoutPassThrough) pDevice->pInputLayoutPassThrough->lpVtbl->Release(pDevice->pInputLayoutPassThrough);
     if (pDevice->pPSPassThrough) pDevice->pPSPassThrough->lpVtbl->Release(pDevice->pPSPassThrough);

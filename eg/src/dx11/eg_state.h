@@ -31,6 +31,9 @@ typedef struct
     // Blur
     float                       blurSpread;
 
+    // Lighting
+    BOOL                        lightingDirty;
+
     // Current enable bits
     EGEnable                    enableBits;
 } SEGState;
