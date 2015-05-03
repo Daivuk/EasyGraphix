@@ -88,18 +88,16 @@ void egSphere(float radius, uint32_t slices, uint32_t stacks, float sfactor)
     if (stacks < 2) return;
 
     // Sides
-    for (uint32_t j = 0; j < stacks; ++j)
+    egBegin(EG_TRIANGLE_STRIP);
     {
-        float cosB = -cosf(((float)j / (float)stacks) * EG_PI);
-        float cosT = -cosf(((float)(j + 1) / (float)stacks) * EG_PI);
-        float aCosB = fabsf(cosB);
-        float aCosT = fabsf(cosT);
-        float sinB = sinf(((float)j / (float)stacks) * EG_PI);
-        float sinT = sinf(((float)(j + 1) / (float)stacks) * EG_PI);
-        float aSinB = fabsf(sinB);
-        float aSinT = fabsf(sinT);
-        egBegin(EG_TRIANGLE_STRIP);
+        for (uint32_t j = 0; j < stacks; ++j)
         {
+            float cosB = -cosf(((float)j / (float)stacks) * EG_PI);
+            float cosT = -cosf(((float)(j + 1) / (float)stacks) * EG_PI);
+            float sinB = sinf(((float)j / (float)stacks) * EG_PI);
+            float sinT = sinf(((float)(j + 1) / (float)stacks) * EG_PI);
+            float aSinB = fabsf(sinB);
+            float aSinT = fabsf(sinT);
             for (uint32_t i = 0; i <= slices; ++i)
             {
                 float cosTheta = cosf((float)i / (float)slices * EG_PI * 2);
@@ -122,8 +120,8 @@ void egSphere(float radius, uint32_t slices, uint32_t stacks, float sfactor)
                             cosT * radius);
             }
         }
-        egEnd();
     }
+    egEnd();
 }
 
 void egCylinder(float bottomRadius, float topRadius, float height, uint32_t slices, float sfactor)
@@ -184,29 +182,42 @@ void egTube(float outterRadius, float innerRadius, float height, uint32_t slices
 {
     if (slices < 3) return;
 
-    // Caps
     egBegin(EG_TRIANGLE_STRIP);
     {
+        // Top cap
         egNormal(0, 0, 1);
         egTangent(1, 0, 0);
         egBinormal(0, -1, 0);
-        for (uint32_t i = 0; i <= slices; ++i)
+        for (int i = (int)slices; i >= 0; --i)
         {
             float cosTheta = cosf((float)i / (float)slices * EG_PI * 2);
             float sinTheta = sinf((float)i / (float)slices * EG_PI * 2);
 
-            egTexCoord(cosTheta * .5f + .5f, (sinTheta * .5f) + .5f);
-            egPosition3(cosTheta * outterRadius, -sinTheta * outterRadius, height);
-
             egTexCoord(cosTheta * .5f * innerRadius / outterRadius + .5f,
                        sinTheta * .5f * innerRadius / outterRadius + .5f);
             egPosition3(cosTheta * innerRadius, -sinTheta * innerRadius, height);
-        }
-    }
-    egEnd();
 
-    egBegin(EG_TRIANGLE_STRIP);
-    {
+            egTexCoord(cosTheta * .5f + .5f, (sinTheta * .5f) + .5f);
+            egPosition3(cosTheta * outterRadius, -sinTheta * outterRadius, height);
+        }
+
+        // Outter radius
+        egBinormal(0, 0, -1);
+        for (int i = (int)slices; i >= 0; --i)
+        {
+            float cosTheta = cosf((float)i / (float)slices * EG_PI * 2);
+            float sinTheta = sinf((float)i / (float)slices * EG_PI * 2);
+            egNormal(cosTheta, -sinTheta, 0);
+            egTangent(-sinTheta, -cosTheta, 0);
+
+            egTexCoord((float)i / (float)slices * sfactor, 0);
+            egPosition3(cosTheta * outterRadius, -sinTheta * outterRadius, height);
+
+            egTexCoord((float)i / (float)slices * sfactor, 1);
+            egPosition3(cosTheta * outterRadius, -sinTheta * outterRadius, 0);
+        }
+
+        // Bottom cap
         egNormal(0, 0, -1);
         egTangent(1, 0, 0);
         egBinormal(0, 1, 0);
@@ -222,40 +233,20 @@ void egTube(float outterRadius, float innerRadius, float height, uint32_t slices
                        sinTheta * .5f * innerRadius / outterRadius + .5f);
             egPosition3(cosTheta * innerRadius, sinTheta * innerRadius, 0);
         }
-    }
-    egEnd();
 
-    // Outter radius
-    egBegin(EG_TRIANGLE_STRIP);
-    {
-        for (uint32_t i = 0; i <= slices; ++i)
-        {
-            float cosTheta = cosf((float)i / (float)slices * EG_PI * 2);
-            float sinTheta = sinf((float)i / (float)slices * EG_PI * 2);
-            egNormal(cosTheta, -sinTheta, 0);
-            egTangent(-sinTheta, -cosTheta, 0);
-            egBinormal(0, 0, -1);
-            egTexCoord((float)i / (float)slices * sfactor, 1);
-            egPosition3(cosTheta * outterRadius, -sinTheta * outterRadius, 0);
-            egTexCoord((float)i / (float)slices * sfactor, 0);
-            egPosition3(cosTheta * outterRadius, -sinTheta * outterRadius, height);
-        }
-    }
-    egEnd();
-
-    // Inner radius
-    egBegin(EG_TRIANGLE_STRIP);
-    {
+        // Inner radius
+        egBinormal(0, 0, -1);
         for (uint32_t i = 0; i <= slices; ++i)
         {
             float cosTheta = cosf((float)i / (float)slices * EG_PI * 2);
             float sinTheta = sinf((float)i / (float)slices * EG_PI * 2);
             egNormal(-cosTheta, -sinTheta, 0);
             egTangent(-sinTheta, cosTheta, 0);
-            egBinormal(0, 0, -1);
-            egTexCoord((float)i / (float)slices * sfactor, 1);
-            egPosition3(cosTheta * innerRadius, sinTheta * innerRadius, 0);
+
             egTexCoord((float)i / (float)slices * sfactor, 0);
+            egPosition3(cosTheta * innerRadius, sinTheta * innerRadius, 0);
+
+            egTexCoord((float)i / (float)slices * sfactor, 1);
             egPosition3(cosTheta * innerRadius, sinTheta * innerRadius, height);
         }
     }

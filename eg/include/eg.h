@@ -271,7 +271,7 @@ extern "C"
 
         /*! If enabled, currently drawn primitives or lights will cast 
             shadow. */
-        EG_SHADOW                       = 0x00000800,
+        EG_CAST_SHADOW                  = 0x00000800,
 
         /*! If enabled, primitives are drawn to the distortion map and applied
             when egPostProcess is called. */

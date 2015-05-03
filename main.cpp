@@ -72,6 +72,7 @@ void init()
     egDisable(EG_ALL);
     egEnable(EG_DEPTH_TEST | EG_DEPTH_WRITE | EG_CULL);
     egEnable(EG_LIGHTING);
+    egEnable(EG_CAST_SHADOW);
     egEnable(EG_HDR | EG_BLOOM /*| EG_BLUR*/ | EG_VIGNETTE);
     egBlur(32);
     egVignette(8);
@@ -148,7 +149,7 @@ void draw()
         egCube(3);
 
         egModelTranslate(-5, 2, 0);
-        egSphere(1.5f, 360, 12, 4);
+        egSphere(1.5f, 24, 12, 4);
 
         egModelTranslate(7, -7, -1.5f);
         egTube(1.5f, 1.0f, 3, 24, 3);
@@ -162,6 +163,7 @@ void draw()
     }
     egEnd();
 
+#if 0
     egBegin(EG_OMNIS);
     {
         egFalloffExponent(1);
@@ -194,6 +196,7 @@ void draw()
         egPosition3(5, 20, -2.0f); // This will render the light
     }
     egEnd();
+#endif
     egPostProcess();
 #endif
 #if 1 // 2d
