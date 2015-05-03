@@ -72,8 +72,9 @@ void init()
     egDisable(EG_ALL);
     egEnable(EG_DEPTH_TEST | EG_DEPTH_WRITE | EG_CULL);
     egEnable(EG_LIGHTING);
-    egEnable(EG_HDR | EG_BLOOM/* | EG_BLUR*/);
-    egBlur(128);
+    egEnable(EG_HDR | EG_BLOOM /*| EG_BLUR*/ | EG_VIGNETTE);
+    egBlur(32);
+    egVignette(8);
     state3d = egCreateState();
 
     egDisable(EG_ALL);

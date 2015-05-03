@@ -12,7 +12,7 @@ extern const char *g_psPassThrough;
 extern const char *g_psLDR;
 extern const char *g_psBlurH;
 extern const char *g_psBlurV;
-extern const char *g_psToneMap;
+extern const char *g_psPostProcess[2];
 extern const char *g_psAmbient;
 extern const char *g_psOmni;
 

@@ -172,7 +172,14 @@ void egPostProcess()
     // HDR (Tone map + bloom)
     if (pState->enableBits & EG_HDR)
     {
-        pBoundDevice->pDeviceContext->lpVtbl->PSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pPSToneMap, NULL, 0);
+        if (pState->enableBits & EG_VIGNETTE)
+        {
+            pBoundDevice->pDeviceContext->lpVtbl->PSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pPSPostProcess[1], NULL, 0);
+        }
+        else
+        {
+            pBoundDevice->pDeviceContext->lpVtbl->PSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pPSPostProcess[0], NULL, 0);
+        }
         pBoundDevice->pDeviceContext->lpVtbl->OMSetRenderTargets(pBoundDevice->pDeviceContext, 1, &pTargetView, NULL);
         pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 0, 1, &pCurrentView->texture.pResourceView);
         pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 1, 1, &pBloomTexture->pResourceView);

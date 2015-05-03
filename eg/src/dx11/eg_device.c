@@ -211,7 +211,10 @@ EGDevice egCreateDevice(HWND windowHandle)
     CREATE_PS(g_psOmni, &pBoundDevice->pPSOmni);
     CREATE_PS(g_psBlurH, &pBoundDevice->pPSBlurH);
     CREATE_PS(g_psBlurV, &pBoundDevice->pPSBlurV);
-    CREATE_PS(g_psToneMap, &pBoundDevice->pPSToneMap);
+    for (int i = 0; i < 2; ++i)
+    {
+        CREATE_PS(g_psPostProcess[i], &(pBoundDevice->pPSPostProcess[i]));
+    }
 
     // Create uniforms
     {
@@ -250,7 +253,7 @@ EGDevice egCreateDevice(HWND windowHandle)
     }
     {
         D3D11_BUFFER_DESC cbDesc = {sizeof(float) * 4, D3D11_USAGE_DYNAMIC, D3D11_BIND_CONSTANT_BUFFER, D3D11_CPU_ACCESS_WRITE, 0, 0};
-        float initialRef[4] = {.5f, 0, 0, 0};
+        float initialRef[4] = {.5f, 4.f, 0, 0};
         D3D11_SUBRESOURCE_DATA initialData = {initialRef, 0, 0};
         result = pBoundDevice->pDevice->lpVtbl->CreateBuffer(pBoundDevice->pDevice, &cbDesc, &initialData, &pBoundDevice->pCBAlphaTestRef);
         if (result != S_OK)
@@ -405,6 +408,11 @@ EGDevice egCreateDevice(HWND windowHandle)
         egBlendFunc(EG_ONE, EG_ONE);
         pBoundDevice->passStates[EG_AMBIENT_PASS] = egCreateState();
         pBoundDevice->passStates[EG_OMNI_PASS] = egCreateState();
+
+        SEGState *pState = pBoundDevice->states + (pBoundDevice->passStates[EG_AMBIENT_PASS] - 1);
+        pState->ignoreBits = STATE_ALPHA_TEST | STATE_VIGNETTE;
+        pState = pBoundDevice->states + (pBoundDevice->passStates[EG_OMNI_PASS] - 1);
+        pState->ignoreBits = STATE_ALPHA_TEST | STATE_VIGNETTE;
     }
     {
         egDisable(EG_ALL);
@@ -416,6 +424,8 @@ EGDevice egCreateDevice(HWND windowHandle)
         pState->samplerState.desc.ComparisonFunc = D3D11_COMPARISON_ALWAYS;
         pState->samplerState.desc.MaxLOD = D3D11_FLOAT32_MAX;
         pBoundDevice->passStates[EG_POST_PROCESS_PASS] = egCreateState();
+        pState = pBoundDevice->states + (pBoundDevice->passStates[EG_POST_PROCESS_PASS] - 1);
+        pState->ignoreBits = STATE_ALPHA_TEST | STATE_VIGNETTE;
     }
 
     resetState();
@@ -534,7 +544,10 @@ void egDestroyDevice(EGDevice *pDeviceID)
     if (pDevice->pPSLDR) pDevice->pPSLDR->lpVtbl->Release(pDevice->pPSLDR);
     if (pDevice->pPSBlurH) pDevice->pPSBlurH->lpVtbl->Release(pDevice->pPSBlurH);
     if (pDevice->pPSBlurV) pDevice->pPSBlurV->lpVtbl->Release(pDevice->pPSBlurV);
-    if (pDevice->pPSToneMap) pDevice->pPSToneMap->lpVtbl->Release(pDevice->pPSToneMap);
+    for (int i = 0; i < 2; ++i)
+    {
+        if (pDevice->pPSPostProcess[i]) pDevice->pPSPostProcess[i]->lpVtbl->Release(pDevice->pPSPostProcess[i]);
+    }
 
     // States
     for (uint32_t i = 0; i < pDevice->stateCount; ++i)

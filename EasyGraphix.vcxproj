@@ -57,7 +57,7 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>d3d11.lib;dxguid.lib;D3DCompiler.lib;egdx11.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>egdx11.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>eg/lib</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>

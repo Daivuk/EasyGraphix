@@ -74,7 +74,7 @@ const char *g_vs = MULTILINE(
         output.depth.xy = output.position.zw;
         return output;
     }
-);
+    );
 
 #define PSSTART_NOLIT \
     "Texture2D xDiffuse:register(t0);" \
@@ -138,30 +138,32 @@ const char *g_vs = MULTILINE(
     "}"
 
 #define PSALPHATESTSTART \
-"cbuffer AlphaTestRefCB:register(b2)" \
+"cbuffer AlphaTestRefCB : register(b4)" \
 "{" \
-"    float4 alphaTestRef;" \
+"    float alphaRef;" \
+"    float vignetteExponent;" \
+"    float2 AlphaTestRefCB_padding;" \
 "}"
 
 const char *g_pses[18] = {
     PSSTART PSEND, // EG_LIGHTING !EG_ALPHA_TEST
     PSALPHATESTSTART PSSTART "discard;" PSEND, // EG_LIGHTING EG_ALPHA_TEST
-    PSALPHATESTSTART PSSTART "if (xdiffuse.a < alphaTestRef.r) discard;" PSEND, // EG_LIGHTING EG_ALPHA_TEST
-    PSALPHATESTSTART PSSTART "if (xdiffuse.a == alphaTestRef.r) discard;" PSEND, // EG_LIGHTING EG_ALPHA_TEST
-    PSALPHATESTSTART PSSTART "if (xdiffuse.a <= alphaTestRef.r) discard;" PSEND, // EG_LIGHTING EG_ALPHA_TEST
-    PSALPHATESTSTART PSSTART "if (xdiffuse.a > alphaTestRef.r) discard;" PSEND, // EG_LIGHTING EG_ALPHA_TEST
-    PSALPHATESTSTART PSSTART "if (xdiffuse.a != alphaTestRef.r) discard;" PSEND, // EG_LIGHTING EG_ALPHA_TEST
-    PSALPHATESTSTART PSSTART "if (xdiffuse.a >= alphaTestRef.r) discard;" PSEND, // EG_LIGHTING EG_ALPHA_TEST
+    PSALPHATESTSTART PSSTART "if (xdiffuse.a < alphaRef) discard;" PSEND, // EG_LIGHTING EG_ALPHA_TEST
+    PSALPHATESTSTART PSSTART "if (xdiffuse.a == alphaRef) discard;" PSEND, // EG_LIGHTING EG_ALPHA_TEST
+    PSALPHATESTSTART PSSTART "if (xdiffuse.a <= alphaRef) discard;" PSEND, // EG_LIGHTING EG_ALPHA_TEST
+    PSALPHATESTSTART PSSTART "if (xdiffuse.a > alphaRef) discard;" PSEND, // EG_LIGHTING EG_ALPHA_TEST
+    PSALPHATESTSTART PSSTART "if (xdiffuse.a != alphaRef) discard;" PSEND, // EG_LIGHTING EG_ALPHA_TEST
+    PSALPHATESTSTART PSSTART "if (xdiffuse.a >= alphaRef) discard;" PSEND, // EG_LIGHTING EG_ALPHA_TEST
     PSSTART PSEND, // EG_LIGHTING EG_ALPHA_TEST
 
     PSSTART_NOLIT PSEND_NOLIT, // !EG_LIGHTING !EG_ALPHA_TEST
     PSALPHATESTSTART PSSTART_NOLIT "discard;" PSEND_NOLIT, // !EG_LIGHTING EG_ALPHA_TEST
-    PSALPHATESTSTART PSSTART_NOLIT "if (xdiffuse.a < alphaTestRef.r) discard;" PSEND_NOLIT, // !EG_LIGHTING EG_ALPHA_TEST
-    PSALPHATESTSTART PSSTART_NOLIT "if (xdiffuse.a == alphaTestRef.r) discard;" PSEND_NOLIT, // !EG_LIGHTING EG_ALPHA_TEST
-    PSALPHATESTSTART PSSTART_NOLIT "if (xdiffuse.a <= alphaTestRef.r) discard;" PSEND_NOLIT, // !EG_LIGHTING EG_ALPHA_TEST
-    PSALPHATESTSTART PSSTART_NOLIT "if (xdiffuse.a > alphaTestRef.r) discard;" PSEND_NOLIT, // !EG_LIGHTING EG_ALPHA_TEST
-    PSALPHATESTSTART PSSTART_NOLIT "if (xdiffuse.a != alphaTestRef.r) discard;" PSEND_NOLIT, // !EG_LIGHTING EG_ALPHA_TEST
-    PSALPHATESTSTART PSSTART_NOLIT "if (xdiffuse.a >= alphaTestRef.r) discard;" PSEND_NOLIT, // !EG_LIGHTING EG_ALPHA_TEST
+    PSALPHATESTSTART PSSTART_NOLIT "if (xdiffuse.a < alphaRef) discard;" PSEND_NOLIT, // !EG_LIGHTING EG_ALPHA_TEST
+    PSALPHATESTSTART PSSTART_NOLIT "if (xdiffuse.a == alphaRef) discard;" PSEND_NOLIT, // !EG_LIGHTING EG_ALPHA_TEST
+    PSALPHATESTSTART PSSTART_NOLIT "if (xdiffuse.a <= alphaRef) discard;" PSEND_NOLIT, // !EG_LIGHTING EG_ALPHA_TEST
+    PSALPHATESTSTART PSSTART_NOLIT "if (xdiffuse.a > alphaRef) discard;" PSEND_NOLIT, // !EG_LIGHTING EG_ALPHA_TEST
+    PSALPHATESTSTART PSSTART_NOLIT "if (xdiffuse.a != alphaRef) discard;" PSEND_NOLIT, // !EG_LIGHTING EG_ALPHA_TEST
+    PSALPHATESTSTART PSSTART_NOLIT "if (xdiffuse.a >= alphaRef) discard;" PSEND_NOLIT, // !EG_LIGHTING EG_ALPHA_TEST
     PSSTART_NOLIT PSEND_NOLIT, // !EG_LIGHTING EG_ALPHA_TEST
 };
 
@@ -225,13 +227,13 @@ const char *g_psLDR = MULTILINE(
         xdiffuse -= 1;
         return xdiffuse * input.color;
     }
-);
+    );
 
 #define GAUSSIAN_BLUR
 
 #ifdef GAUSSIAN_BLUR
 #define BLUR_HEADER \
-"cbuffer AlphaTestRefCB : register(b3)" \
+"cbuffer BlurCB : register(b3)" \
 "{" \
 "    float4 blurSpread;" \
 "}" \
@@ -273,7 +275,7 @@ const char *g_psBlurV = BLUR_HEADER MULTILINE(
 );
 #else
 const char *g_psBlurH = MULTILINE(
-    cbuffer AlphaTestRefCB:register(b3)
+    cbuffer BlurCB : register(b3)
     {
         float4 blurSpread;
     }
@@ -302,7 +304,7 @@ const char *g_psBlurH = MULTILINE(
 );
 
 const char *g_psBlurV = MULTILINE(
-    cbuffer AlphaTestRefCB:register(b3)
+    cbuffer BlurCB : register(b3)
     {
         float4 blurSpread;
     }
@@ -331,19 +333,52 @@ const char *g_psBlurV = MULTILINE(
 );
 #endif
 
-const char *g_psToneMap = MULTILINE(
+const char *g_psPostProcess[2] = {
+    MULTILINE(
     Texture2D xHdr : register(t0);
     Texture2D xBloom : register(t1);
     SamplerState sSampler : register(s0);
 
     struct sInput
     {
-        float4 position:SV_POSITION;
-        float2 texCoord:TEXCOORD;
-        float4 color:COLOR;
+        float4 position : SV_POSITION;
+        float2 texCoord : TEXCOORD;
+        float4 color : COLOR;
     };
 
-    float4 main(sInput input):SV_TARGET
+    float4 main(sInput input) :SV_TARGET
+    {
+        float4 xhdr = xHdr.Sample(sSampler, input.texCoord);
+        float4 xbloom = xBloom.Sample(sSampler, input.texCoord);
+
+        // Mix HDR and bloom
+        float4 color = lerp(xhdr, xbloom, 0.4);
+
+        // Exposure level
+        color *= 1.0;
+
+        return color * input.color;
+    }),
+    MULTILINE(
+    Texture2D xHdr : register(t0);
+    Texture2D xBloom : register(t1);
+    SamplerState sSampler : register(s0);
+
+    cbuffer AlphaTestRefCB : register(b2)
+    {
+        float alphaRef;
+        float vignetteExponent;
+        float2 AlphaTestRefCB_padding;
+    }
+
+    struct sInput
+    {
+        float4 position : SV_POSITION;
+        float2 texCoord : TEXCOORD;
+        float4 color : COLOR;
+    };
+
+    float4 main(sInput input) :SV_TARGET
     {
         float4 xhdr = xHdr.Sample(sSampler, input.texCoord);
         float4 xbloom = xBloom.Sample(sSampler, input.texCoord);
@@ -353,15 +388,15 @@ const char *g_psToneMap = MULTILINE(
 
         // Vignette
         input.texCoord -= 0.5;
-        float vignette = 1 - dot(input.texCoord, input.texCoord);
-        color *= pow(vignette, 4.0);
+        float vignette = abs(1 - dot(input.texCoord, input.texCoord));
+        color *= pow(vignette, vignetteExponent);
 
         // Exposure level
         color *= 1.0;
 
         return color * input.color;
-    }
-);
+    })
+};
 
 const char *g_psAmbient = MULTILINE(
     Texture2D xDiffuse:register(t0);

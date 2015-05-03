@@ -45,7 +45,7 @@ typedef struct
     ID3D11PixelShader          *pPSLDR;
     ID3D11PixelShader          *pPSBlurH;
     ID3D11PixelShader          *pPSBlurV;
-    ID3D11PixelShader          *pPSToneMap;
+    ID3D11PixelShader          *pPSPostProcess[2];
 
     // Constant buffers
     ID3D11Buffer               *pCBViewProj;

@@ -77,7 +77,10 @@ void resetState()
 
     pState->blurState.spread = 8.f;
 
-    pState->dirtyBits = DIRTY_ALL;
+    pState->vignetteState.exponent = 4.f;
+
+    pState->dirtyBits = STATE_ALL;
+    pState->ignoreBits = STATE_NONE;
 
     pBoundDevice->pDeviceContext->lpVtbl->IASetInputLayout(pBoundDevice->pDeviceContext, pBoundDevice->pInputLayout);
     pBoundDevice->pDeviceContext->lpVtbl->VSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pVS, NULL, 0);
@@ -100,60 +103,40 @@ void resetState()
 void updateState()
 {
     SEGState *pState = pBoundDevice->stateStack + pBoundDevice->statesStackCount;
-    if (pState->dirtyBits & DIRTY_DEPTH)
+    if (pState->dirtyBits & STATE_DEPTH &&
+        !(pState->ignoreBits & STATE_DEPTH))
     {
         ID3D11DepthStencilState *pDs2D;
         pBoundDevice->pDevice->lpVtbl->CreateDepthStencilState(pBoundDevice->pDevice, &pState->depthState.desc, &pDs2D);
         pBoundDevice->pDeviceContext->lpVtbl->OMSetDepthStencilState(pBoundDevice->pDeviceContext, pDs2D, 1);
         pDs2D->lpVtbl->Release(pDs2D);
     }
-    if (pState->dirtyBits & DIRTY_RASTERIZER)
+    if (pState->dirtyBits & STATE_RASTERIZER &&
+        !(pState->ignoreBits & STATE_RASTERIZER))
     {
         ID3D11RasterizerState *pSr2D;
         pBoundDevice->pDevice->lpVtbl->CreateRasterizerState(pBoundDevice->pDevice, &pState->rasterizerState.desc, &pSr2D);
         pBoundDevice->pDeviceContext->lpVtbl->RSSetState(pBoundDevice->pDeviceContext, pSr2D);
         pSr2D->lpVtbl->Release(pSr2D);
     }
-    if (pState->dirtyBits & DIRTY_BLEND)
+    if (pState->dirtyBits & STATE_BLEND &&
+        !(pState->ignoreBits & STATE_BLEND))
     {
         ID3D11BlendState *pBs2D;
         pBoundDevice->pDevice->lpVtbl->CreateBlendState(pBoundDevice->pDevice, &pState->blendState.desc, &pBs2D);
         pBoundDevice->pDeviceContext->lpVtbl->OMSetBlendState(pBoundDevice->pDeviceContext, pBs2D, NULL, 0xffffffff);
         pBs2D->lpVtbl->Release(pBs2D);
     }
-    if (pState->dirtyBits & DIRTY_SAMPLER)
+    if (pState->dirtyBits & STATE_SAMPLER &&
+        !(pState->ignoreBits & STATE_SAMPLER))
     {
         ID3D11SamplerState *pSs2D;
         pBoundDevice->pDevice->lpVtbl->CreateSamplerState(pBoundDevice->pDevice, &pState->samplerState.desc, &pSs2D);
         pBoundDevice->pDeviceContext->lpVtbl->PSSetSamplers(pBoundDevice->pDeviceContext, 0, 1, &pSs2D);
         pSs2D->lpVtbl->Release(pSs2D);
     }
-    if (pState->dirtyBits & DIRTY_ALPHA_TEST)
-    {
-        int i = 0;
-        if (pState->enableBits & EG_ALPHA_TEST)
-        {
-            i += 1 + pState->alphaTestState.func;
-
-            // Update the constant buffer
-            D3D11_MAPPED_SUBRESOURCE map;
-            ID3D11Resource *pRes = NULL;
-            pBoundDevice->pCBAlphaTestRef->lpVtbl->QueryInterface(pBoundDevice->pCBAlphaTestRef, &IID_ID3D11Resource, &pRes);
-            pBoundDevice->pDeviceContext->lpVtbl->Map(pBoundDevice->pDeviceContext, pRes, 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
-            float ref4[4] = {pState->alphaTestState.ref, 0, 0, 0};
-            memcpy(map.pData, ref4, 16);
-            pBoundDevice->pDeviceContext->lpVtbl->Unmap(pBoundDevice->pDeviceContext, pRes, 0);
-            pRes->lpVtbl->Release(pRes);
-            pBoundDevice->pDeviceContext->lpVtbl->PSSetConstantBuffers(pBoundDevice->pDeviceContext, 2, 1, &pBoundDevice->pCBAlphaTestRef);
-        }
-        if (!(pState->enableBits & EG_LIGHTING))
-        {
-            i += 9;
-        }
-        pBoundDevice->pActivePS = pBoundDevice->pPSes[i];
-        pBoundDevice->pDeviceContext->lpVtbl->PSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pActivePS, NULL, 0);
-    }
-    if (pState->dirtyBits & DIRTY_LIGHTING)
+    if (pState->dirtyBits & STATE_ALPHA_TEST &&
+        !(pState->ignoreBits & STATE_ALPHA_TEST))
     {
         int i = 0;
         if (pState->enableBits & EG_ALPHA_TEST)
@@ -167,7 +150,38 @@ void updateState()
         pBoundDevice->pActivePS = pBoundDevice->pPSes[i];
         pBoundDevice->pDeviceContext->lpVtbl->PSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pActivePS, NULL, 0);
     }
-    pState->dirtyBits = DIRTY_NONE;
+    if (pState->dirtyBits & STATE_LIGHTING &&
+        !(pState->ignoreBits & STATE_LIGHTING))
+    {
+        int i = 0;
+        if (pState->enableBits & EG_ALPHA_TEST)
+        {
+            i += 1 + pState->alphaTestState.func;
+        }
+        if (!(pState->enableBits & EG_LIGHTING))
+        {
+            i += 9;
+        }
+        pBoundDevice->pActivePS = pBoundDevice->pPSes[i];
+        pBoundDevice->pDeviceContext->lpVtbl->PSSetShader(pBoundDevice->pDeviceContext, pBoundDevice->pActivePS, NULL, 0);
+    }
+    // Update the shared constant buffer
+    if (((pState->dirtyBits & STATE_ALPHA_TEST) && (pState->enableBits & EG_ALPHA_TEST) &&
+        !(pState->ignoreBits & STATE_ALPHA_TEST)) ||
+        ((pState->dirtyBits & STATE_VIGNETTE) && (pState->enableBits & EG_VIGNETTE) &&
+        !(pState->ignoreBits & STATE_VIGNETTE)))
+    {
+        D3D11_MAPPED_SUBRESOURCE map;
+        ID3D11Resource *pRes = NULL;
+        pBoundDevice->pCBAlphaTestRef->lpVtbl->QueryInterface(pBoundDevice->pCBAlphaTestRef, &IID_ID3D11Resource, &pRes);
+        pBoundDevice->pDeviceContext->lpVtbl->Map(pBoundDevice->pDeviceContext, pRes, 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
+        float ref4[4] = {pState->alphaTestState.ref, pState->vignetteState.exponent, 0, 0};
+        memcpy(map.pData, ref4, 16);
+        pBoundDevice->pDeviceContext->lpVtbl->Unmap(pBoundDevice->pDeviceContext, pRes, 0);
+        pRes->lpVtbl->Release(pRes);
+        pBoundDevice->pDeviceContext->lpVtbl->PSSetConstantBuffers(pBoundDevice->pDeviceContext, 2, 1, &pBoundDevice->pCBAlphaTestRef);
+    }
+    pState->dirtyBits = STATE_NONE;
 }
 
 void updateBlendState(SEGState *pState)
@@ -217,12 +231,12 @@ void egBlendFunc(EG_BLEND_FACTOR src, EG_BLEND_FACTOR dst)
     if (pState->blendState.desc.RenderTarget->SrcBlend != dxSrc)
     {
         pState->blendState.desc.RenderTarget->SrcBlend = dxSrc;
-        dirtyCurrentState(DIRTY_BLEND);
+        dirtyCurrentState(STATE_BLEND);
     }
     if (pState->blendState.desc.RenderTarget->DestBlend != dxDst)
     {
         pState->blendState.desc.RenderTarget->DestBlend = dxDst;
-        dirtyCurrentState(DIRTY_BLEND);
+        dirtyCurrentState(STATE_BLEND);
     }
 }
 
@@ -233,7 +247,7 @@ void egFrontFace(EG_FRONT_FACE mode)
     if (pState->rasterizerState.desc.FrontCounterClockwise != (BOOL)mode)
     {
         pState->rasterizerState.desc.FrontCounterClockwise = (BOOL)mode;
-        dirtyCurrentState(DIRTY_RASTERIZER);
+        dirtyCurrentState(STATE_RASTERIZER);
     }
 }
 
@@ -249,14 +263,14 @@ void egFilter(EG_FILTER filter)
         {
             pState->samplerState.desc.Filter = (filter & 0xff);
             pState->samplerState.desc.MaxAnisotropy = maxAnisotropy;
-            dirtyCurrentState(DIRTY_SAMPLER);
+            dirtyCurrentState(STATE_SAMPLER);
         }
     }
     else if ((filter & 0xff) != pState->samplerState.desc.Filter)
     {
         pState->samplerState.desc.Filter = (filter & 0xff);
         pState->samplerState.desc.MaxAnisotropy = 1; // We don't care, but in case
-        dirtyCurrentState(DIRTY_SAMPLER);
+        dirtyCurrentState(STATE_SAMPLER);
     }
 }
 
@@ -271,7 +285,7 @@ void egAlphaFunc(EG_COMPARE func, float ref)
         ref = max(0, ref);
         pState->alphaTestState.func = func;
         pState->alphaTestState.ref = ref;
-        dirtyCurrentState(DIRTY_ALPHA_TEST);
+        dirtyCurrentState(STATE_ALPHA_TEST);
     }
 }
 
@@ -282,7 +296,7 @@ void egDepthFunc(EG_COMPARE func)
     if (pState->depthState.desc.DepthFunc != func + 1)
     {
         pState->depthState.desc.DepthFunc = func + 1;
-        dirtyCurrentState(DIRTY_DEPTH);
+        dirtyCurrentState(STATE_DEPTH);
     }
 }
 
@@ -293,6 +307,13 @@ void egBlur(float spread)
     pState->blurState.spread = spread;
 }
 
+void egVignette(float exponent)
+{
+    if (!pBoundDevice) return;
+    SEGState *pState = pBoundDevice->stateStack + pBoundDevice->statesStackCount;
+    pState->vignetteState.exponent = exponent;
+}
+
 void egEnable(EGEnable stateBits)
 {
     if (!pBoundDevice) return;
@@ -300,40 +321,44 @@ void egEnable(EGEnable stateBits)
     if ((stateBits & EG_BLEND) && !(pState->enableBits & EG_BLEND))
     {
         pState->blendState.desc.RenderTarget->BlendEnable = TRUE;
-        dirtyCurrentState(DIRTY_BLEND);
+        dirtyCurrentState(STATE_BLEND);
     }
     if ((stateBits & EG_DEPTH_TEST) && !(pState->enableBits & EG_DEPTH_TEST))
     {
         pState->depthState.desc.DepthEnable = TRUE;
-        dirtyCurrentState(DIRTY_DEPTH);
+        dirtyCurrentState(STATE_DEPTH);
     }
     if ((stateBits & EG_CULL) && !(pState->enableBits & EG_CULL))
     {
         pState->rasterizerState.desc.CullMode = D3D11_CULL_BACK;
-        dirtyCurrentState(DIRTY_RASTERIZER);
+        dirtyCurrentState(STATE_RASTERIZER);
     }
     if ((stateBits & EG_SCISSOR) && !(pState->enableBits & EG_SCISSOR))
     {
         pState->rasterizerState.desc.ScissorEnable = TRUE;
-        dirtyCurrentState(DIRTY_RASTERIZER);
+        dirtyCurrentState(STATE_RASTERIZER);
     }
     if ((stateBits & EG_ALPHA_TEST) && !(pState->enableBits & EG_ALPHA_TEST))
     {
-        dirtyCurrentState(DIRTY_ALPHA_TEST);
+        dirtyCurrentState(STATE_ALPHA_TEST);
     }
     if ((stateBits & EG_DEPTH_WRITE) && !(pState->enableBits & EG_DEPTH_WRITE))
     {
         pState->depthState.desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
-        dirtyCurrentState(DIRTY_DEPTH);
+        dirtyCurrentState(STATE_DEPTH);
     }
     if ((stateBits & EG_WIREFRAME) && !(pState->enableBits & EG_WIREFRAME))
     {
         pState->rasterizerState.desc.FillMode = D3D11_FILL_WIREFRAME;
-        dirtyCurrentState(DIRTY_RASTERIZER);
+        dirtyCurrentState(STATE_RASTERIZER);
     }
     if ((stateBits & EG_LIGHTING) && !(pState->enableBits & EG_LIGHTING))
     {
-        dirtyCurrentState(DIRTY_LIGHTING);
+        dirtyCurrentState(STATE_LIGHTING);
+    }
+    if ((stateBits & EG_VIGNETTE) && !(pState->enableBits & EG_VIGNETTE))
+    {
+        dirtyCurrentState(STATE_VIGNETTE);
     }
     pState->enableBits |= stateBits;
 }
@@ -345,40 +370,44 @@ void egDisable(EGEnable stateBits)
     if ((stateBits & EG_BLEND) && (pState->enableBits & EG_BLEND))
     {
         pState->blendState.desc.RenderTarget->BlendEnable = FALSE;
-        dirtyCurrentState(DIRTY_BLEND);
+        dirtyCurrentState(STATE_BLEND);
     }
     if ((stateBits & EG_DEPTH_TEST) && (pState->enableBits & EG_DEPTH_TEST))
     {
         pState->depthState.desc.DepthEnable = FALSE;
-        dirtyCurrentState(DIRTY_DEPTH);
+        dirtyCurrentState(STATE_DEPTH);
     }
     if ((stateBits & EG_CULL) && (pState->enableBits & EG_CULL))
     {
         pState->rasterizerState.desc.CullMode = D3D11_CULL_NONE;
-        dirtyCurrentState(DIRTY_RASTERIZER);
+        dirtyCurrentState(STATE_RASTERIZER);
     }
     if ((stateBits & EG_SCISSOR) && (pState->enableBits & EG_SCISSOR))
     {
         pState->rasterizerState.desc.ScissorEnable = FALSE;
-        dirtyCurrentState(DIRTY_RASTERIZER);
+        dirtyCurrentState(STATE_RASTERIZER);
     }
     if ((stateBits & EG_ALPHA_TEST) && (pState->enableBits & EG_ALPHA_TEST))
     {
-        dirtyCurrentState(DIRTY_ALPHA_TEST);
+        dirtyCurrentState(STATE_ALPHA_TEST);
     }
     if ((stateBits & EG_DEPTH_WRITE) && (pState->enableBits & EG_DEPTH_WRITE))
     {
         pState->depthState.desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
-        dirtyCurrentState(DIRTY_DEPTH);
+        dirtyCurrentState(STATE_DEPTH);
     }
     if ((stateBits & EG_WIREFRAME) && (pState->enableBits & EG_WIREFRAME))
     {
         pState->rasterizerState.desc.FillMode = D3D11_FILL_SOLID;
-        dirtyCurrentState(DIRTY_RASTERIZER);
+        dirtyCurrentState(STATE_RASTERIZER);
     }
     if ((stateBits & EG_LIGHTING) && (pState->enableBits & EG_LIGHTING))
     {
-        dirtyCurrentState(DIRTY_LIGHTING);
+        dirtyCurrentState(STATE_LIGHTING);
+    }
+    if ((stateBits & EG_VIGNETTE) && (pState->enableBits & EG_VIGNETTE))
+    {
+        dirtyCurrentState(STATE_VIGNETTE);
     }
     pState->enableBits &= ~stateBits;
 }
@@ -399,7 +428,7 @@ EGState egCreateState()
     pBoundDevice->pDevice->lpVtbl->CreateSamplerState(pBoundDevice->pDevice, &pState->samplerState.desc, &pState->samplerState.pState);
     {    
         D3D11_BUFFER_DESC cbDesc = {sizeof(float) * 4, D3D11_USAGE_IMMUTABLE, D3D11_BIND_CONSTANT_BUFFER, 0, 0, 0};
-        float initialRef[4] = {pState->alphaTestState.ref, 0, 0, 0};
+        float initialRef[4] = {pState->alphaTestState.ref, pState->vignetteState.exponent, 0, 0};
         D3D11_SUBRESOURCE_DATA initialData = {initialRef, 0, 0};
         pBoundDevice->pDevice->lpVtbl->CreateBuffer(pBoundDevice->pDevice, &cbDesc, &initialData, &pState->alphaTestState.pCB);
     }
@@ -415,16 +444,22 @@ void egDestroyState(EGState *pState)
 void applyStaticState(SEGState *pState)
 {
     // Dirty all bits on the current / previous state
-    dirtyCurrentState(DIRTY_ALL);
+    dirtyCurrentState(STATE_ALL);
     SEGState *pCurrentState = pBoundDevice->stateStack + pBoundDevice->statesStackCount;
-    pState->dirtyBits = DIRTY_NONE;
+    pState->dirtyBits = STATE_NONE;
     memcpy(pCurrentState, pState, sizeof(SEGState));
 
-    pBoundDevice->pDeviceContext->lpVtbl->OMSetDepthStencilState(pBoundDevice->pDeviceContext, pState->depthState.pState, 1);
-    pBoundDevice->pDeviceContext->lpVtbl->RSSetState(pBoundDevice->pDeviceContext, pState->rasterizerState.pState);
-    pBoundDevice->pDeviceContext->lpVtbl->OMSetBlendState(pBoundDevice->pDeviceContext, pState->blendState.pState, NULL, 0xffffffff);
-    pBoundDevice->pDeviceContext->lpVtbl->PSSetSamplers(pBoundDevice->pDeviceContext, 0, 1, &pState->samplerState.pState);
-    pBoundDevice->pDeviceContext->lpVtbl->PSSetConstantBuffers(pBoundDevice->pDeviceContext, 2, 1, &pState->alphaTestState.pCB);
+    if (!(pState->ignoreBits & STATE_DEPTH))
+        pBoundDevice->pDeviceContext->lpVtbl->OMSetDepthStencilState(pBoundDevice->pDeviceContext, pState->depthState.pState, 1);
+    if (!(pState->ignoreBits & STATE_RASTERIZER))
+        pBoundDevice->pDeviceContext->lpVtbl->RSSetState(pBoundDevice->pDeviceContext, pState->rasterizerState.pState);
+    if (!(pState->ignoreBits & STATE_BLEND))
+        pBoundDevice->pDeviceContext->lpVtbl->OMSetBlendState(pBoundDevice->pDeviceContext, pState->blendState.pState, NULL, 0xffffffff);
+    if (!(pState->ignoreBits & STATE_SAMPLER))
+        pBoundDevice->pDeviceContext->lpVtbl->PSSetSamplers(pBoundDevice->pDeviceContext, 0, 1, &pState->samplerState.pState);
+    if (!(pState->ignoreBits & STATE_ALPHA_TEST) &&
+        !(pState->ignoreBits & STATE_VIGNETTE))
+        pBoundDevice->pDeviceContext->lpVtbl->PSSetConstantBuffers(pBoundDevice->pDeviceContext, 2, 1, &pState->alphaTestState.pCB);
 
     int i = 0;
     if (pState->enableBits & EG_ALPHA_TEST)

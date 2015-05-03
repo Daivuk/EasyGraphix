@@ -6,7 +6,7 @@ void beginGeometryPass()
     if (!pBoundDevice) return;
 
     SEGState *pState = pBoundDevice->stateStack + pBoundDevice->statesStackCount;
-    if (pBoundDevice->pass == EG_GEOMETRY_PASS && !(pState->dirtyBits & (DIRTY_ALPHA_TEST | DIRTY_LIGHTING))) return;
+    if (pBoundDevice->pass == EG_GEOMETRY_PASS && !(pState->dirtyBits & (STATE_ALPHA_TEST | STATE_LIGHTING))) return;
     pBoundDevice->pass = EG_GEOMETRY_PASS;
 
     pBoundDevice->pDeviceContext->lpVtbl->IASetInputLayout(pBoundDevice->pDeviceContext, pBoundDevice->pInputLayout);

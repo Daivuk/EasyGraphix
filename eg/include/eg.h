@@ -290,6 +290,9 @@ extern "C"
         /*! Draw information needed for lighting */
         EG_LIGHTING                     = 0x00010000,
 
+        /*! Apply depth of field in post process */
+        EG_DEPTH_OF_FIELD               = 0x00020000,
+
         /*! All enable bits */
         EG_ALL                          = 0xffffffff
 
@@ -1287,7 +1290,8 @@ extern "C"
     /*!
         Destroy a state
 
-        \param pState Pointer to a state object. It will be set to 0 if successful
+        \param pState Pointer to a state object. It will be set to 0 if 
+        successful
     */
     void egDestroyState(EGState *pState);
 
@@ -1297,6 +1301,20 @@ extern "C"
         \param state State object to bind.
     */
     void egBindState(EGState state);
+
+    /*!
+        Set vignette exponent
+
+        \param exponent Higher the value, the more screen 
+        coverage you get. Default is 4.
+    */
+    void egVignette(float exponent);
+
+    /*!
+        Set depth of field focus points
+    */
+    void egDepthOfField(float nearStart, float nearEnd,
+                        float farStart, float farEnd);
 
 #ifdef __cplusplus
 }       /* extern "C" */

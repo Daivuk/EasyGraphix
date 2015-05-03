@@ -7,15 +7,16 @@
 
 typedef enum
 {
-    DIRTY_NONE          = 0x00000000,
-    DIRTY_DEPTH         = 0x00000001,
-    DIRTY_RASTERIZER    = 0x00000002,
-    DIRTY_BLEND         = 0x00000004,
-    DIRTY_SAMPLER       = 0x00000008,
-    DIRTY_ALPHA_TEST    = 0x00000010,
-    DIRTY_LIGHTING      = 0x00000020,
-    DIRTY_ALL           = 0xffffffff
-} DIRTY_BITS;
+    STATE_NONE          = 0x00000000,
+    STATE_DEPTH         = 0x00000001,
+    STATE_RASTERIZER    = 0x00000002,
+    STATE_BLEND         = 0x00000004,
+    STATE_SAMPLER       = 0x00000008,
+    STATE_ALPHA_TEST    = 0x00000010,
+    STATE_LIGHTING      = 0x00000020,
+    STATE_VIGNETTE      = 0x00000040,
+    STATE_ALL           = 0xffffffff
+} STATE_BITS;
 
 typedef struct
 {
@@ -55,11 +56,19 @@ typedef struct
 
 typedef struct
 {
+    float                       exponent;
+} SEGVignetteState;
+
+typedef struct
+{
     // Current enable bits
     EGEnable                    enableBits;
 
     // Dirty flags
     uint32_t                    dirtyBits;
+
+    // Bypass certain states
+    uint32_t                    ignoreBits;
 
     // States
     SEGDepthState               depthState;
@@ -68,6 +77,7 @@ typedef struct
     SEGSamplerState             samplerState;
     SEGAlphaTestState           alphaTestState;
     SEGBlurState                blurState;
+    SEGVignetteState            vignetteState;
 
 } SEGState;
 
