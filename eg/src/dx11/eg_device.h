@@ -56,8 +56,9 @@ typedef struct
     ID3D11Buffer               *pCBBlurSpread;
 
     // Batch's dynamic vertex buffer
-    ID3D11Buffer               *pVertexBuffer;
-    ID3D11Resource             *pVertexBufferRes;
+    ID3D11Buffer               *pVertexBuffers[8];
+    ID3D11Resource             *pVertexBufferResources[8];
+    SEGVertex                  *pCurrentBatchVertices;
 
     // Matrices
     SEGMatrix                   projectionMatrix;

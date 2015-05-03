@@ -3,7 +3,7 @@
 void drawScreenQuad(float left, float top, float right, float bottom, float *pColor)
 {
     D3D11_MAPPED_SUBRESOURCE mappedVertexBuffer;
-    pBoundDevice->pDeviceContext->lpVtbl->Map(pBoundDevice->pDeviceContext, pBoundDevice->pVertexBufferRes, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedVertexBuffer);
+    pBoundDevice->pDeviceContext->lpVtbl->Map(pBoundDevice->pDeviceContext, pBoundDevice->pVertexBufferResources[0], 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedVertexBuffer);
     pBoundDevice->pVertex = (SEGVertex*)mappedVertexBuffer.pData;
 
     pBoundDevice->pVertex[0].x = left;
@@ -30,11 +30,11 @@ void drawScreenQuad(float left, float top, float right, float bottom, float *pCo
     pBoundDevice->pVertex[3].v = 1;
     memcpy(&pBoundDevice->pVertex[3].r, pColor, 16);
 
-    pBoundDevice->pDeviceContext->lpVtbl->Unmap(pBoundDevice->pDeviceContext, pBoundDevice->pVertexBufferRes, 0);
+    pBoundDevice->pDeviceContext->lpVtbl->Unmap(pBoundDevice->pDeviceContext, pBoundDevice->pVertexBufferResources[0], 0);
 
     const UINT stride = sizeof(SEGVertex);
     const UINT offset = 0;
-    pBoundDevice->pDeviceContext->lpVtbl->IASetVertexBuffers(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->pVertexBuffer, &stride, &offset);
+    pBoundDevice->pDeviceContext->lpVtbl->IASetVertexBuffers(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->pVertexBuffers[0], &stride, &offset);
     pBoundDevice->pDeviceContext->lpVtbl->Draw(pBoundDevice->pDeviceContext, 4, 0);
 }
 

@@ -278,24 +278,29 @@ EGDevice egCreateDevice(HWND windowHandle)
     // Create our geometry batch vertex buffer that will be used to batch everything
     D3D11_BUFFER_DESC vertexBufferDesc;
     vertexBufferDesc.Usage = D3D11_USAGE_DYNAMIC;
-    vertexBufferDesc.ByteWidth = MAX_VERTEX_COUNT * sizeof(SEGVertex);
     vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
     vertexBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
     vertexBufferDesc.MiscFlags = 0;
     vertexBufferDesc.StructureByteStride = 0;
-    result = pBoundDevice->pDevice->lpVtbl->CreateBuffer(pBoundDevice->pDevice, &vertexBufferDesc, NULL, &pBoundDevice->pVertexBuffer);
-    if (result != S_OK)
+    pBoundDevice->pCurrentBatchVertices = (SEGVertex *)malloc(sizeof(SEGVertex) * MAX_VERTEX_COUNT);
+    for (UINT i = 0; i < 8; ++i)
     {
-        setError("Failed CreateBuffer VertexBuffer");
-        egDestroyDevice(&ret);
-        return 0;
-    }
-    result = pBoundDevice->pVertexBuffer->lpVtbl->QueryInterface(pBoundDevice->pVertexBuffer, &IID_ID3D11Resource, &pBoundDevice->pVertexBufferRes);
-    if (result != S_OK)
-    {
-        setError("Failed VertexBuffer ID3D11Buffer QueryInterface -> IID_ID3D11Resource");
-        egDestroyDevice(&ret);
-        return 0;
+        UINT vertCount = (UINT)pow(2, 8 + (double)i);
+        vertexBufferDesc.ByteWidth = vertCount * sizeof(SEGVertex);
+        result = pBoundDevice->pDevice->lpVtbl->CreateBuffer(pBoundDevice->pDevice, &vertexBufferDesc, NULL, &pBoundDevice->pVertexBuffers[i]);
+        if (result != S_OK)
+        {
+            setError("Failed CreateBuffer VertexBuffer");
+            egDestroyDevice(&ret);
+            return 0;
+        }
+        result = pBoundDevice->pVertexBuffers[i]->lpVtbl->QueryInterface(pBoundDevice->pVertexBuffers[i], &IID_ID3D11Resource, &pBoundDevice->pVertexBufferResources[i]);
+        if (result != S_OK)
+        {
+            setError("Failed VertexBuffer ID3D11Buffer QueryInterface -> IID_ID3D11Resource");
+            egDestroyDevice(&ret);
+            return 0;
+        }
     }
 
     // Create default textures
@@ -516,8 +521,12 @@ void egDestroyDevice(EGDevice *pDeviceID)
     destroyRenderTarget(&pBoundDevice->accumulationBuffer);
 
     // VBO
-    if (pDevice->pVertexBufferRes) pDevice->pVertexBufferRes->lpVtbl->Release(pDevice->pVertexBufferRes);
-    if (pDevice->pVertexBuffer) pDevice->pVertexBuffer->lpVtbl->Release(pDevice->pVertexBuffer);
+    for (int i = 0; i < 8; ++i)
+    {
+        if (pDevice->pVertexBufferResources[i]) pDevice->pVertexBufferResources[i]->lpVtbl->Release(pDevice->pVertexBufferResources[i]);
+        if (pDevice->pVertexBuffers[i]) pDevice->pVertexBuffers[i]->lpVtbl->Release(pDevice->pVertexBuffers[i]);
+    }
+    if (pDevice->pCurrentBatchVertices) free(pDevice->pCurrentBatchVertices);
 
     // Constant buffers
     if (pDevice->pCBModel) pDevice->pCBModel->lpVtbl->Release(pDevice->pCBModel);

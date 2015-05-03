@@ -148,7 +148,7 @@ void draw()
         egCube(3);
 
         egModelTranslate(-5, 2, 0);
-        egSphere(1.5f, 24, 12, 4);
+        egSphere(1.5f, 360, 12, 4);
 
         egModelTranslate(7, -7, -1.5f);
         egTube(1.5f, 1.0f, 3, 24, 3);

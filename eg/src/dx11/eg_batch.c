@@ -1,8 +1,6 @@
 #include "eg_device.h"
 #include "eg_math.h"
 
-BOOL bMapVB = TRUE;
-
 void flush();
 
 void drawAmbient()
@@ -77,7 +75,6 @@ void egBegin(EG_MODE mode)
     if (pBoundDevice->bIsInBatch) return;
     if (!pBoundDevice) return;
     egStatePush();
-    bMapVB = TRUE;
     pBoundDevice->currentMode = mode;
     switch (pBoundDevice->currentMode)
     {
@@ -116,23 +113,16 @@ void egBegin(EG_MODE mode)
             break;
         case EG_AMBIENTS:
             beginAmbientPass();
-            bMapVB = FALSE;
             break;
         case EG_OMNIS:
             beginOmniPass();
-            bMapVB = FALSE;
             break;
         default:
             return;
     }
 
+    pBoundDevice->pVertex = pBoundDevice->pCurrentBatchVertices;
     pBoundDevice->bIsInBatch = TRUE;
-    if (bMapVB)
-    {
-        D3D11_MAPPED_SUBRESOURCE mappedVertexBuffer;
-        pBoundDevice->pDeviceContext->lpVtbl->Map(pBoundDevice->pDeviceContext, pBoundDevice->pVertexBufferRes, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedVertexBuffer);
-        pBoundDevice->pVertex = (SEGVertex*)mappedVertexBuffer.pData;
-    }
 }
 
 void computeTangentBasis(const float *P0, const float *P1, const float *P2,
@@ -267,20 +257,29 @@ void flush()
         generateTangentBinormal();
     }
 
-    pBoundDevice->pDeviceContext->lpVtbl->Unmap(pBoundDevice->pDeviceContext, pBoundDevice->pVertexBufferRes, 0);
+    // Upload the data to the dynamic vertex buffer.
+    // Pick the most appropriate one
+    UINT vboIndex = 0;
+    UINT verticesCount = pBoundDevice->currentVertexCount;
+    while (verticesCount > 256)
+    {
+        ++vboIndex;
+        verticesCount /= 2;
+    }
+    D3D11_MAPPED_SUBRESOURCE mappedVertexBuffer;
+    pBoundDevice->pDeviceContext->lpVtbl->Map(pBoundDevice->pDeviceContext, pBoundDevice->pVertexBufferResources[vboIndex], 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedVertexBuffer);
+    memcpy(mappedVertexBuffer.pData, pBoundDevice->pCurrentBatchVertices, sizeof(SEGVertex) * pBoundDevice->currentVertexCount);
+    pBoundDevice->pDeviceContext->lpVtbl->Unmap(pBoundDevice->pDeviceContext, pBoundDevice->pVertexBufferResources[vboIndex], 0);
 
     // Make sure states are up to date
     updateState();
 
     const UINT stride = sizeof(SEGVertex);
     const UINT offset = 0;
-    pBoundDevice->pDeviceContext->lpVtbl->IASetVertexBuffers(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->pVertexBuffer, &stride, &offset);
+    pBoundDevice->pDeviceContext->lpVtbl->IASetVertexBuffers(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->pVertexBuffers[vboIndex], &stride, &offset);
     pBoundDevice->pDeviceContext->lpVtbl->Draw(pBoundDevice->pDeviceContext, pBoundDevice->currentVertexCount, 0);
 
     pBoundDevice->currentVertexCount = 0;
-
-    D3D11_MAPPED_SUBRESOURCE mappedVertexBuffer;
-    pBoundDevice->pDeviceContext->lpVtbl->Map(pBoundDevice->pDeviceContext, pBoundDevice->pVertexBufferRes, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedVertexBuffer);
     pBoundDevice->pVertex = (SEGVertex*)mappedVertexBuffer.pData;
 }
 
@@ -290,11 +289,6 @@ void egEnd()
     if (!pBoundDevice) return;
     flush();
     pBoundDevice->bIsInBatch = FALSE;
-
-    if (bMapVB)
-    {
-        pBoundDevice->pDeviceContext->lpVtbl->Unmap(pBoundDevice->pDeviceContext, pBoundDevice->pVertexBufferRes, 0);
-    }
 
     egStatePop();
 }

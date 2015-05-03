@@ -3,7 +3,7 @@
 #ifndef EG_BATCH_H_INCLUDED
 #define EG_BATCH_H_INCLUDED
 
-#define MAX_VERTEX_COUNT (300 * 2 * 3)
+#define MAX_VERTEX_COUNT 32768 // 2^15
 
 typedef struct
 {

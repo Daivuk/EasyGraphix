@@ -485,12 +485,13 @@ void egBindState(EGState state)
 //--- New features
 //EG_SHADOW
 
-//--- Partially
-//EG_VIGNETTE
-
 //--- Post process
 //EG_DISTORTION,
 //EG_AMBIENT_OCCLUSION
+//EG_MOTION_BLUR
+//EG_GRADING
+//EG_DEPTH_OF_FIELD
+//EG_SCREEN_SPACE_REFLECTIONS
 
 //--- Potential ditch
 //EG_STENCIL_TEST
