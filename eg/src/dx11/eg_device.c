@@ -635,3 +635,15 @@ void updateModelCB()
     pRes->lpVtbl->Release(pRes);
     pBoundDevice->pDeviceContext->lpVtbl->VSSetConstantBuffers(pBoundDevice->pDeviceContext, 1, 1, &pBoundDevice->pCBModel);
 }
+
+void egGetiv(EGGet what, int *out)
+{
+    if (!pBoundDevice) return;
+    switch (what)
+    {
+        case EG_RESOLUTION:
+            out[0] = (int)pBoundDevice->backBufferDesc.Width;
+            out[1] = (int)pBoundDevice->backBufferDesc.Height;
+            break;
+    }
+}

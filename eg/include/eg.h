@@ -463,6 +463,11 @@ extern "C"
 
     } EG_COMPARE;
 
+    typedef enum
+    {
+        EG_RESOLUTION
+    } EGGet;
+
     /*!
         Return zero terminated string describing the last error.
     */
@@ -620,6 +625,8 @@ extern "C"
         values.
     */
     void egSetViewProj(const float *pView, const float *pProj);
+
+    void egSetViewProjMerged(const float *pViewProj);
 
     /*!
         Get the view matrix
@@ -1315,6 +1322,11 @@ extern "C"
     */
     void egDepthOfField(float nearStart, float nearEnd,
                         float farStart, float farEnd);
+
+    /*!
+        Generic get function for int arrays
+    */
+    void egGetiv(EGGet what, int *out);
 
 #ifdef __cplusplus
 }       /* extern "C" */

@@ -129,6 +129,20 @@ void egSetViewProj(const float *pView, const float *pProj)
     updateInvViewProjCB();
 }
 
+void egSetViewProjMerged(const float *pViewProj)
+{
+    if (!pBoundDevice) return;
+    if (pBoundDevice->bIsInBatch) return;
+
+    memcpy(&pBoundDevice->viewProjMatrix, pViewProj, sizeof(SEGMatrix));
+
+    // Inverse for light pass
+    inverseMatrix(&pBoundDevice->viewProjMatrix, &pBoundDevice->invViewProjMatrix);
+
+    updateViewProjCB();
+    updateInvViewProjCB();
+}
+
 void egGetView(float *pView)
 {
     if (!pBoundDevice) return;
