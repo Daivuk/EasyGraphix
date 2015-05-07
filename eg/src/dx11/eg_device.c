@@ -647,3 +647,71 @@ void egGetiv(EGGet what, int *out)
             break;
     }
 }
+
+void egResize()
+{
+    if (!pBoundDevice) return;
+    if (pBoundDevice->pRenderTargetView) pBoundDevice->pRenderTargetView->lpVtbl->Release(pBoundDevice->pRenderTargetView);
+
+    // Delete buffers
+    pBoundDevice->pSwapChain->lpVtbl->ResizeBuffers(pBoundDevice->pSwapChain, 0, 0, 0, DXGI_FORMAT_UNKNOWN, 0);
+    for (uint32_t i = 0; i < 4; ++i)
+    {
+        SEGRenderTarget2D *pRenderTarget = pBoundDevice->gBuffer + i;
+        destroyRenderTarget(pRenderTarget);
+    }
+    for (uint32_t i = 0; i < 8; ++i)
+    {
+        for (uint32_t k = 0; k < 2; ++k)
+        {
+            SEGRenderTarget2D *pRenderTarget = &pBoundDevice->blurBuffers[i][k];
+            destroyRenderTarget(pRenderTarget);
+        }
+    }
+    destroyRenderTarget(&pBoundDevice->accumulationBuffer);
+
+    ID3D11Texture2D        *pBackBuffer;
+    ID3D11Resource         *pBackBufferRes;
+
+    // Create render target
+    pBoundDevice->pSwapChain->lpVtbl->GetBuffer(pBoundDevice->pSwapChain, 0, &IID_ID3D11Texture2D, (void**)&pBackBuffer);
+    pBoundDevice->pSwapChain->lpVtbl->GetBuffer(pBoundDevice->pSwapChain, 0, &IID_ID3D11Resource, (void**)&pBackBufferRes);
+    pBoundDevice->pDevice->lpVtbl->CreateRenderTargetView(pBoundDevice->pDevice, pBackBufferRes, NULL, &pBoundDevice->pRenderTargetView);
+    pBackBuffer->lpVtbl->GetDesc(pBackBuffer, &pBoundDevice->backBufferDesc);
+    pBackBufferRes->lpVtbl->Release(pBackBufferRes);
+    pBackBuffer->lpVtbl->Release(pBackBuffer);
+
+    // Recreate buffers
+    // Create our G-Buffer
+    createRenderTarget(pBoundDevice->gBuffer + G_DIFFUSE,
+                       pBoundDevice->backBufferDesc.Width, pBoundDevice->backBufferDesc.Height,
+                       DXGI_FORMAT_R8G8B8A8_UNORM);
+    createRenderTarget(pBoundDevice->gBuffer + G_DEPTH,
+                       pBoundDevice->backBufferDesc.Width, pBoundDevice->backBufferDesc.Height,
+                       DXGI_FORMAT_R32_FLOAT);
+    createRenderTarget(pBoundDevice->gBuffer + G_NORMAL,
+                       pBoundDevice->backBufferDesc.Width, pBoundDevice->backBufferDesc.Height,
+                       DXGI_FORMAT_R8G8B8A8_UNORM);
+    createRenderTarget(pBoundDevice->gBuffer + G_MATERIAL,
+                       pBoundDevice->backBufferDesc.Width, pBoundDevice->backBufferDesc.Height,
+                       DXGI_FORMAT_R8G8B8A8_UNORM);
+
+    // Accumulation buffer. This is an HDR texture
+    createRenderTarget(&pBoundDevice->accumulationBuffer,
+                       pBoundDevice->backBufferDesc.Width, pBoundDevice->backBufferDesc.Height,
+                       DXGI_FORMAT_R16G16B16A16_FLOAT); // DXGI_FORMAT_R11G11B10_FLOAT
+
+    // Create blur buffers
+    for (int i = 0; i < 8; ++i)
+    {
+        UINT divider = (UINT)pow(2, (double)i);
+        for (int k = 0; k < 2; ++k)
+        {
+            UINT w = pBoundDevice->backBufferDesc.Width / divider;
+            UINT h = pBoundDevice->backBufferDesc.Height / divider;
+            createRenderTarget(&pBoundDevice->blurBuffers[i][k],
+                               w, h,
+                               DXGI_FORMAT_R8G8B8A8_UNORM);
+        }
+    }
+}
