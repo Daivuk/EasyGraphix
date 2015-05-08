@@ -59,8 +59,8 @@ void resetState()
         pState->blendState.desc.RenderTarget[i].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
         pState->blendState.desc.RenderTarget[i].BlendOp = D3D11_BLEND_OP_ADD;
         pState->blendState.desc.RenderTarget[i].SrcBlendAlpha = D3D11_BLEND_ONE;
-        pState->blendState.desc.RenderTarget[i].DestBlendAlpha = D3D11_BLEND_ZERO;
-        pState->blendState.desc.RenderTarget[i].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+        pState->blendState.desc.RenderTarget[i].DestBlendAlpha = D3D11_BLEND_ONE;
+        pState->blendState.desc.RenderTarget[i].BlendOpAlpha = D3D11_BLEND_OP_MAX;
         pState->blendState.desc.RenderTarget[i].RenderTargetWriteMask = D3D10_COLOR_WRITE_ENABLE_ALL;
     }
 
