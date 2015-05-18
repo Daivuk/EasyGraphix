@@ -17,6 +17,24 @@ EGTexture   materialFloor;
 EGTexture   alphaTest;
 EGState     state3d;
 EGState     state2d;
+EGTexture   ogreTextures[3];
+
+struct sMeshVertex
+{
+    float x, y, z;
+    float nx, ny, nz;
+    float u, v;
+    float r, g, b;
+};
+
+struct sMesh
+{
+    sMeshVertex *pVertices;
+    unsigned short *pIndices;
+    unsigned long nbIndices;
+};
+
+sMesh ogreMesh;
 
 void init()
 {
@@ -68,12 +86,46 @@ void init()
         alphaTest = egCreateTexture2D(w, h, image.data(), EG_U8 | EG_RGBA, EG_GENERATE_MIPMAPS);
     }
 
+    // Ogre resources
+    {
+        std::vector<unsigned char> image;
+        auto ret = lodepng::decode(image, w, h, "ogre_dif.png");
+        assert(!ret);
+        ogreTextures[0] = egCreateTexture2D(w, h, image.data(), EG_U8 | EG_RGBA, EG_GENERATE_MIPMAPS);
+    }
+    {
+        std::vector<unsigned char> image;
+        auto ret = lodepng::decode(image, w, h, "ogre_normal.png");
+        assert(!ret);
+        ogreTextures[1] = egCreateTexture2D(w, h, image.data(), EG_U8 | EG_RGBA, EG_GENERATE_MIPMAPS);
+    }
+    {
+        std::vector<unsigned char> image;
+        auto ret = lodepng::decode(image, w, h, "ogre_spec.png");
+        assert(!ret);
+        ogreTextures[2] = egCreateTexture2D(w, h, image.data(), EG_U8 | EG_RGBA, EG_GENERATE_MIPMAPS);
+    }
+    {
+        FILE *pFic;
+        fopen_s(&pFic, "ogre.mesh", "rb");
+
+        unsigned long version;
+        fread(&version, 4, 1, pFic);
+        unsigned long nbVertices;
+        fread(&nbVertices, 4, 1, pFic);
+        ogreMesh.pVertices = new sMeshVertex[nbVertices];
+        fread(&ogreMesh.nbIndices, 4, 1, pFic);
+        ogreMesh.pIndices = new unsigned short[ogreMesh.nbIndices];
+        fread(ogreMesh.pVertices, 4, nbVertices * 11, pFic);
+        fread(ogreMesh.pIndices, 2, ogreMesh.nbIndices, pFic);
+    }
+
     // Create state objects
     egDisable(EG_ALL);
     egEnable(EG_DEPTH_TEST | EG_DEPTH_WRITE | EG_CULL);
     egEnable(EG_LIGHTING);
-    egEnable(EG_CAST_SHADOW);
-    egEnable(EG_HDR | EG_BLOOM /*| EG_BLUR*/ | EG_VIGNETTE);
+    //egEnable(EG_CAST_SHADOW);
+    egEnable(EG_HDR | EG_BLOOM /*| EG_BLUR | EG_VIGNETTE*/);
     egBlur(32);
     egVignette(8);
     state3d = egCreateState();
@@ -99,6 +151,84 @@ void draw()
     egClearColor(0, 0, 0, 1);
     egClear(EG_CLEAR_ALL);
 
+#if 1 // Grimrock asset test
+    // Setup matrices
+    egModelIdentity();
+    egSet3DViewProj(-1, 2.5f, -2.5f, 0, 1.5f, 0, 0, 1, 0, 70, .1f, 10000.f);
+    //egSet3DViewProj(-0.5f, 2.5f, -1.5f, 0, 2.5f, 0, 0, 1, 0, 70, .1f, 10000.f);
+
+    // Setup 3d states
+    egBindState(state3d);
+
+#if 1 // Background
+    egColor3(1, 1, 1);
+    egBindDiffuse(0);
+    egBindNormal(0);
+    egBindMaterial(0);
+    egModelPush();
+    {
+        egModelTranslate(0, 20, 0);
+        egModelRotate(180, 1, 0, 0);
+        egTangent(1, 0, 0);
+        egBinormal(0, -1, 0);
+        egNormal(0, 0, 1);
+        egColor3(0, 0, 0);
+        egBegin(EG_QUADS);
+        {
+            egTexCoord(0, 0);
+            egPosition3(-100, 100, 0);
+            egTexCoord(0, 200 / 5);
+            egPosition3(-100, -100, 0);
+            egTexCoord(200 / 5, 200 / 5);
+            egPosition3(100, -100, 0);
+            egTexCoord(200 / 5, 0);
+            egPosition3(100, 100, 0);
+        }
+        egEnd();
+    }
+    egModelPop();
+#endif
+
+
+    egBindDiffuse(ogreTextures[0]);
+    egBindNormal(ogreTextures[1]);
+    egBindMaterial(ogreTextures[2]);
+    egColor3(1, 1, 1);
+
+    egEnable(EG_GENERATE_TANGENT_BINORMAL);
+    egBegin(EG_TRIANGLES);
+    for (unsigned int i = 0; i < ogreMesh.nbIndices; ++i)
+    {
+        auto pVert = ogreMesh.pVertices + ogreMesh.pIndices[i];
+        egNormal(pVert->nx, pVert->ny, pVert->nz);
+        egTexCoord(pVert->u, pVert->v);
+        egPosition3(pVert->x, pVert->y, pVert->z);
+    }
+    egEnd();
+    egDisable(EG_GENERATE_TANGENT_BINORMAL);
+
+    egBegin(EG_AMBIENTS);
+    egColor3(.15f, .15f, .15f);
+    egEnd();
+
+    egBegin(EG_OMNIS);
+
+    egColor3(1, .85f, .5f);
+    egMultiply(2);
+    egRadius(200);
+    egPosition3(-10, 0, 3);
+
+    egColor3(.5f, .85f, 1);
+    egMultiply(6);
+    egRadius(200);
+    egPosition3(10, 10, -3);
+
+    egEnd();
+
+    egPostProcess();
+#endif
+
+#if 0 // Basic test
 #if 1 // 3d
     // Setup matrices
     egModelIdentity();
@@ -237,6 +367,7 @@ void draw()
     egEnable(EG_BLEND);
     egBlendFunc(EG_SRC_ALPHA, EG_ONE_MINUS_SRC_ALPHA);
     egPostProcess();
+#endif
 #endif
 
     egSwap();

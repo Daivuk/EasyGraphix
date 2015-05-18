@@ -225,7 +225,7 @@ const char *g_psLDR = MULTILINE(
     {
         float4 xdiffuse = xDiffuse.Sample(sSampler, input.texCoord);
         xdiffuse -= 1;
-        return xdiffuse * input.color;
+        return float4((xdiffuse * input.color).rgb, 1);
     }
     );
 
@@ -351,7 +351,7 @@ const char *g_psPostProcess[2] = {
         float4 xhdr = xHdr.Sample(sSampler, input.texCoord);
         float4 xbloom = xBloom.Sample(sSampler, input.texCoord);
 
-        // Mix HDR and bloom
+        // Mix HDR and bloom 
         float4 color = lerp(xhdr, xbloom, 0.4);
 
         // Exposure level
@@ -359,6 +359,9 @@ const char *g_psPostProcess[2] = {
 
         return color * input.color;
     }),
+
+
+
     MULTILINE(
     Texture2D xHdr : register(t0);
     Texture2D xBloom : register(t1);
