@@ -264,23 +264,26 @@ void flush()
     while (verticesCount > 256)
     {
         ++vboIndex;
-        verticesCount /= 2;
+        verticesCount = verticesCount / 2 + (verticesCount - (verticesCount / 2 * 2));
     }
-    D3D11_MAPPED_SUBRESOURCE mappedVertexBuffer;
-    pBoundDevice->pDeviceContext->lpVtbl->Map(pBoundDevice->pDeviceContext, pBoundDevice->pVertexBufferResources[vboIndex], 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedVertexBuffer);
-    memcpy(mappedVertexBuffer.pData, pBoundDevice->pCurrentBatchVertices, sizeof(SEGVertex) * pBoundDevice->currentVertexCount);
-    pBoundDevice->pDeviceContext->lpVtbl->Unmap(pBoundDevice->pDeviceContext, pBoundDevice->pVertexBufferResources[vboIndex], 0);
+    if (vboIndex < 8)
+    {
+        D3D11_MAPPED_SUBRESOURCE mappedVertexBuffer;
+        pBoundDevice->pDeviceContext->lpVtbl->Map(pBoundDevice->pDeviceContext, pBoundDevice->pVertexBufferResources[vboIndex], 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedVertexBuffer);
+        memcpy(mappedVertexBuffer.pData, pBoundDevice->pCurrentBatchVertices, sizeof(SEGVertex) * pBoundDevice->currentVertexCount);
+        pBoundDevice->pDeviceContext->lpVtbl->Unmap(pBoundDevice->pDeviceContext, pBoundDevice->pVertexBufferResources[vboIndex], 0);
 
-    // Make sure states are up to date
-    updateState();
+        // Make sure states are up to date
+        updateState();
 
-    const UINT stride = sizeof(SEGVertex);
-    const UINT offset = 0;
-    pBoundDevice->pDeviceContext->lpVtbl->IASetVertexBuffers(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->pVertexBuffers[vboIndex], &stride, &offset);
-    pBoundDevice->pDeviceContext->lpVtbl->Draw(pBoundDevice->pDeviceContext, pBoundDevice->currentVertexCount, 0);
+        const UINT stride = sizeof(SEGVertex);
+        const UINT offset = 0;
+        pBoundDevice->pDeviceContext->lpVtbl->IASetVertexBuffers(pBoundDevice->pDeviceContext, 0, 1, &pBoundDevice->pVertexBuffers[vboIndex], &stride, &offset);
+        pBoundDevice->pDeviceContext->lpVtbl->Draw(pBoundDevice->pDeviceContext, pBoundDevice->currentVertexCount, 0);
+    }
 
     pBoundDevice->currentVertexCount = 0;
-    pBoundDevice->pVertex = (SEGVertex*)mappedVertexBuffer.pData;
+    pBoundDevice->pVertex = pBoundDevice->pCurrentBatchVertices;
 }
 
 void egEnd()
