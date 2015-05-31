@@ -4,9 +4,7 @@
 ID3DBlob *compileShader(const char *szSource, const char *szProfile)
 {
     ID3DBlob *shaderBlob = NULL;
-#ifdef _DEBUG
     ID3DBlob *errorBlob = NULL;
-#endif
 
     HRESULT result = D3DCompile(szSource, (SIZE_T)strlen(szSource), NULL, NULL, NULL, "main", szProfile,
                                 D3DCOMPILE_ENABLE_STRICTNESS
