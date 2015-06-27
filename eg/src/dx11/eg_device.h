@@ -17,6 +17,8 @@
 #define NORMAL_MAP      1
 #define MATERIAL_MAP    2
 
+#define VERTEX_BUFFER_COUNT 8
+
 typedef struct
 {
     // Devices
@@ -26,6 +28,7 @@ typedef struct
 
     // Render targets
     ID3D11RenderTargetView     *pRenderTargetView;
+    ID3D11RenderTargetView     *pOldRenderTargetView;
     ID3D11DepthStencilView     *pDepthStencilView;
     D3D11_TEXTURE2D_DESC        backBufferDesc;
     SEGRenderTarget2D           gBuffer[4];
@@ -56,8 +59,8 @@ typedef struct
     ID3D11Buffer               *pCBBlurSpread;
 
     // Batch's dynamic vertex buffer
-    ID3D11Buffer               *pVertexBuffers[8];
-    ID3D11Resource             *pVertexBufferResources[8];
+    ID3D11Buffer               *pVertexBuffers[VERTEX_BUFFER_COUNT];
+    ID3D11Resource             *pVertexBufferResources[VERTEX_BUFFER_COUNT];
     SEGVertex                  *pCurrentBatchVertices;
 
     // Matrices

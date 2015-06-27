@@ -219,7 +219,10 @@ extern "C"
 
         /*! Pre-multiply RGB channels with the alpha channel. Used when 
             rendering 2D with pre-multipled alpha blend. */
-        EG_PRE_MULTIPLY = 0x08
+        EG_PRE_MULTIPLY = 0x08,
+
+        /*! The texture can be used as a render target */
+        EG_RENDER_TARGET = 0x10
 
     } EG_TEXTURE_FLAGS;
 
@@ -1328,6 +1331,12 @@ extern "C"
         Generic get function for int arrays
     */
     void egGetiv(EGGet what, int *out);
+
+    /*!
+        Set the current texture target to render to texture.
+        If 0 is passed, main render target is set.
+    */
+    void egBindRenderTarget(EGTexture renderTarget);
 
 #ifdef __cplusplus
 }       /* extern "C" */

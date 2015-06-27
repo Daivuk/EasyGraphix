@@ -12,5 +12,6 @@ typedef struct
 } SEGRenderTarget2D;
 
 HRESULT createRenderTarget(SEGRenderTarget2D *pRenderTarget, UINT w, UINT h, DXGI_FORMAT format);
+HRESULT createTextureRenderTarget(SEGTexture2D *pRenderTarget, UINT w, UINT h, DXGI_FORMAT format);
 
 #endif /* EG_RT_H_INCLUDED */

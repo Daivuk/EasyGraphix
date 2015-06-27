@@ -315,3 +315,24 @@ void egBindMaterial(EGTexture texture)
     if (texture > pBoundDevice->textureCount) return;
     pBoundDevice->pDeviceContext->lpVtbl->PSSetShaderResources(pBoundDevice->pDeviceContext, 2, 1, &pBoundDevice->textures[texture - 1].pResourceView);
 }
+
+void egBindRenderTarget(EGTexture texture)
+{
+    if (!pBoundDevice) return;
+    if (!texture)
+    {
+        if (pBoundDevice->pOldRenderTargetView)
+        {
+            pBoundDevice->pRenderTargetView = pBoundDevice->pOldRenderTargetView;
+            pBoundDevice->pOldRenderTargetView = NULL;
+        }
+    }
+    else
+    {
+        if (!pBoundDevice->pOldRenderTargetView)
+        {
+            pBoundDevice->pOldRenderTargetView = pBoundDevice->pRenderTargetView;
+        }
+        pBoundDevice->pRenderTargetView = pBoundDevice->textures[texture - 1].pRenderTargetView;
+    }
+}

@@ -283,7 +283,7 @@ EGDevice egCreateDevice(HWND windowHandle)
     vertexBufferDesc.MiscFlags = 0;
     vertexBufferDesc.StructureByteStride = 0;
     pBoundDevice->pCurrentBatchVertices = (SEGVertex *)malloc(sizeof(SEGVertex) * MAX_VERTEX_COUNT);
-    for (UINT i = 0; i < 8; ++i)
+    for (UINT i = 0; i < VERTEX_BUFFER_COUNT; ++i)
     {
         UINT vertCount = (UINT)pow(2, 8 + (double)i);
         vertexBufferDesc.ByteWidth = vertCount * sizeof(SEGVertex);

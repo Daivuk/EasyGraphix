@@ -266,7 +266,7 @@ void flush()
         ++vboIndex;
         verticesCount = verticesCount / 2 + (verticesCount - (verticesCount / 2 * 2));
     }
-    if (vboIndex < 8)
+    if (vboIndex < VERTEX_BUFFER_COUNT)
     {
         D3D11_MAPPED_SUBRESOURCE mappedVertexBuffer;
         pBoundDevice->pDeviceContext->lpVtbl->Map(pBoundDevice->pDeviceContext, pBoundDevice->pVertexBufferResources[vboIndex], 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedVertexBuffer);

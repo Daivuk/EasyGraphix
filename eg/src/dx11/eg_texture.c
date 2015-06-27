@@ -1,6 +1,7 @@
 #include <inttypes.h>
 #include "eg_error.h"
 #include "eg_device.h"
+#include "eg_rt.h"
 
 void texture2DFromData(SEGTexture2D *pOut, const uint8_t* pData, UINT w, UINT h, BOOL bGenerateMipMaps)
 {
@@ -200,51 +201,60 @@ EGTexture egCreateTexture2D(uint32_t width, uint32_t height, const void *pData, 
     texture2D.w = width;
     texture2D.h = height;
 
-    uint8_t *pConvertedData = NULL;
-    if (dataFormat == (EG_U8 | EG_RGBA))
+    if (flags & EG_RENDER_TARGET)
     {
-        pConvertedData = (uint8_t *)pData;
+        createTextureRenderTarget(&texture2D, width, height, DXGI_FORMAT_R8G8B8A8_UNORM);
     }
     else
     {
-        uint32_t size = width * height;
-        pConvertedData = (uint8_t *)malloc(size * 4);
-        for (uint32_t i = 0; i < size; ++i)
+        uint8_t *pConvertedData = NULL;
+        if (dataFormat == (EG_U8 | EG_RGBA))
         {
-            if (dataFormat & EG_R)
+            pConvertedData = (uint8_t *)pData;
+        }
+        else
+        {
+            uint32_t size = width * height;
+            pConvertedData = (uint8_t *)malloc(size * 4);
+            for (uint32_t i = 0; i < size; ++i)
             {
-                pConvertedData[i * 4 + 0] = colorFromDataFormat(dataFormat, pData, i);
-                pConvertedData[i * 4 + 1] = 0;
-                pConvertedData[i * 4 + 2] = 0;
-                pConvertedData[i * 4 + 3] = 255;
-            }
-            else if (dataFormat & EG_RG)
-            {
-                pConvertedData[i * 4 + 0] = colorFromDataFormat(dataFormat, pData, i * 2 + 0);
-                pConvertedData[i * 4 + 1] = colorFromDataFormat(dataFormat, pData, i * 2 + 1);
-                pConvertedData[i * 4 + 2] = 0;
-                pConvertedData[i * 4 + 3] = 255;
-            }
-            else if (dataFormat & EG_RGB)
-            {
-                pConvertedData[i * 4 + 0] = colorFromDataFormat(dataFormat, pData, i * 3 + 0);
-                pConvertedData[i * 4 + 1] = colorFromDataFormat(dataFormat, pData, i * 3 + 1);
-                pConvertedData[i * 4 + 2] = colorFromDataFormat(dataFormat, pData, i * 3 + 2);
-                pConvertedData[i * 4 + 3] = 255;
-            }
-            else if (dataFormat & EG_RGBA)
-            {
-                pConvertedData[i * 4 + 0] = colorFromDataFormat(dataFormat, pData, i * 4 + 0);
-                pConvertedData[i * 4 + 1] = colorFromDataFormat(dataFormat, pData, i * 4 + 1);
-                pConvertedData[i * 4 + 2] = colorFromDataFormat(dataFormat, pData, i * 4 + 2);
-                pConvertedData[i * 4 + 3] = colorFromDataFormat(dataFormat, pData, i * 4 + 3);
+                if (dataFormat & EG_R)
+                {
+                    pConvertedData[i * 4 + 0] = colorFromDataFormat(dataFormat, pData, i);
+                    pConvertedData[i * 4 + 1] = 0;
+                    pConvertedData[i * 4 + 2] = 0;
+                    pConvertedData[i * 4 + 3] = 255;
+                }
+                else if (dataFormat & EG_RG)
+                {
+                    pConvertedData[i * 4 + 0] = colorFromDataFormat(dataFormat, pData, i * 2 + 0);
+                    pConvertedData[i * 4 + 1] = colorFromDataFormat(dataFormat, pData, i * 2 + 1);
+                    pConvertedData[i * 4 + 2] = 0;
+                    pConvertedData[i * 4 + 3] = 255;
+                }
+                else if (dataFormat & EG_RGB)
+                {
+                    pConvertedData[i * 4 + 0] = colorFromDataFormat(dataFormat, pData, i * 3 + 0);
+                    pConvertedData[i * 4 + 1] = colorFromDataFormat(dataFormat, pData, i * 3 + 1);
+                    pConvertedData[i * 4 + 2] = colorFromDataFormat(dataFormat, pData, i * 3 + 2);
+                    pConvertedData[i * 4 + 3] = 255;
+                }
+                else if (dataFormat & EG_RGBA)
+                {
+                    pConvertedData[i * 4 + 0] = colorFromDataFormat(dataFormat, pData, i * 4 + 0);
+                    pConvertedData[i * 4 + 1] = colorFromDataFormat(dataFormat, pData, i * 4 + 1);
+                    pConvertedData[i * 4 + 2] = colorFromDataFormat(dataFormat, pData, i * 4 + 2);
+                    pConvertedData[i * 4 + 3] = colorFromDataFormat(dataFormat, pData, i * 4 + 3);
+                }
             }
         }
-    }
-    texture2DFromData(&texture2D, pConvertedData, width, height, (flags & EG_GENERATE_MIPMAPS) ? TRUE : FALSE);
-    if (dataFormat != (EG_U8 | EG_RGBA))
-    {
-        free(pConvertedData);
+
+        texture2DFromData(&texture2D, pConvertedData, width, height, (flags & EG_GENERATE_MIPMAPS) ? TRUE : FALSE);
+
+        if (dataFormat != (EG_U8 | EG_RGBA))
+        {
+            free(pConvertedData);
+        }
     }
     if (!texture2D.pTexture) return 0;
 
