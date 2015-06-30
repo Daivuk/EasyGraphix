@@ -10,7 +10,7 @@ SEGDevice  *pBoundDevice = NULL;
 
 #define CREATE_VS(__src__, __ppVS__, __blob__) \
 { \
-    __blob__ = compileShader(__src__, "vs_5_0"); \
+    __blob__ = compileShader(__src__, "vs_4_0"); \
     HRESULT result = pBoundDevice->pDevice->lpVtbl->CreateVertexShader(pBoundDevice->pDevice, \
                                                                        __blob__->lpVtbl->GetBufferPointer(__blob__), \
                                                                        __blob__->lpVtbl->GetBufferSize(__blob__), NULL, __ppVS__); \
@@ -25,7 +25,7 @@ SEGDevice  *pBoundDevice = NULL;
 
 #define CREATE_PS(__src__, __ppPS__) \
 { \
-    ID3DBlob *pCompiled = compileShader(__src__, "ps_5_0"); \
+    ID3DBlob *pCompiled = compileShader(__src__, "ps_4_0"); \
     HRESULT result = pBoundDevice->pDevice->lpVtbl->CreatePixelShader(pBoundDevice->pDevice, \
                                                                       pCompiled->lpVtbl->GetBufferPointer(pCompiled), \
                                                                       pCompiled->lpVtbl->GetBufferSize(pCompiled), NULL, __ppPS__); \
