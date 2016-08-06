@@ -415,7 +415,7 @@ const char *g_psAmbient = MULTILINE(
     {
         float4 xdiffuse = xDiffuse.Sample(sSampler, input.texCoord);
         float4 xmaterial = xMaterial.Sample(sSampler, input.texCoord);
-        return xdiffuse * input.color + xdiffuse * xmaterial.b * 2;
+        return xdiffuse * input.color;// +xdiffuse * xmaterial.b * 2;
     }
 );
 

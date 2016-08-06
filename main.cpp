@@ -289,7 +289,7 @@ void draw()
 
     egBegin(EG_AMBIENTS);
     {
-        egColor3(.12f, .1f, .15f); // This will render an ambient pass
+        egColor3(.35f, .25f, .35f); // This will render an ambient pass
     }
     egEnd();
 
